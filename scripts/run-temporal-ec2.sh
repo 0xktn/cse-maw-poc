@@ -31,6 +31,8 @@ log_info "Setting up Temporal server on EC2..."
 # Create docker-compose.yml and run Temporal
 COMMANDS='[
     "cd /home/ec2-user",
+    "if ! command -v docker-compose &>/dev/null; then sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)\" -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose; fi",
+    "docker-compose --version",
     "mkdir -p temporal-docker",
     "cd temporal-docker",
     "cat > docker-compose.yml << '\''COMPOSE'\''
@@ -85,7 +87,7 @@ networks:
 COMPOSE",
     "mkdir -p dynamicconfig",
     "echo \"{}\" > dynamicconfig/development-sql.yaml",
-    "sudo docker-compose up -d 2>&1 || sudo docker compose up -d 2>&1",
+    "docker-compose up -d 2>&1",
     "sleep 30",
     "docker ps | grep temporal"
 ]'
