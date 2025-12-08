@@ -112,8 +112,6 @@ else
         --instance-profile-name EnclaveInstanceProfile \
         --role-name "$ROLE_NAME"
     log_info "Created instance profile"
-    log_info "Waiting for EC2 propagation (10s)..."
-    sleep 10
 fi
 
 # Generate encrypted TSK
