@@ -104,6 +104,7 @@ while true; do
     
     case "$STATUS" in
         "Success")
+            echo ""
             log_info "Instance setup completed!"
             state_complete "instance_setup"
             break
