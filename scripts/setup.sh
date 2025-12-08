@@ -161,6 +161,19 @@ if ! command -v sqlite3 &> /dev/null; then
     exit 1
 fi
 
+if ! command -v docker &> /dev/null; then
+    log_error "Docker not found. Please install Docker first."
+    exit 1
+fi
+
+if ! docker info &> /dev/null; then
+    log_error "Docker daemon not running. Please start Docker first."
+    log_error "  macOS: Open Docker Desktop"
+    log_error "  Linux: sudo systemctl start docker"
+    exit 1
+fi
+log_info "Docker: $(docker --version)"
+
 if ! aws sts get-caller-identity &> /dev/null; then
     log_error "AWS credentials not configured. Run 'aws configure' first."
     exit 1
@@ -231,15 +244,19 @@ echo ""
 echo "1. SSH into your instance:"
 echo "   ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@${INSTANCE_IP}"
 echo ""
-echo "2. Run instance setup on the EC2:"
+echo "2. Clone the repo on the EC2:"
+echo "   git clone https://github.com/0xktn/confidential-multi-agent-workflow.git"
+echo "   cd confidential-multi-agent-workflow"
+echo ""
+echo "3. Run instance setup:"
 echo "   ./scripts/setup-instance.sh"
 echo ""
-echo "3. Build the enclave:"
+echo "4. Build the enclave:"
 echo "   ./scripts/build-enclave.sh"
 echo ""
-echo "4. Apply KMS policy with PCR0:"
+echo "5. Apply KMS policy with PCR0:"
 echo "   ./scripts/setup-kms-policy.sh <PCR0_VALUE>"
 echo ""
-echo "5. View current state anytime:"
+echo "6. View current state anytime:"
 echo "   ./scripts/setup.sh --status"
 echo ""
