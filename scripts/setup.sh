@@ -281,6 +281,7 @@ fi
 # Step 6: Apply KMS Attestation Policy
 if ! state_check "kms_policy"; then
     log_step "Step 6: Applying KMS Attestation Policy"
+    state_start "kms_policy"
     
     PCR0=$(state_get "pcr0" 2>/dev/null || echo "")
     if [[ -z "$PCR0" ]]; then
@@ -291,6 +292,7 @@ if ! state_check "kms_policy"; then
     if "$SCRIPT_DIR/setup-kms-policy.sh" "$PCR0"; then
         state_complete "kms_policy"
     else
+        state_fail "kms_policy"
         log_error "KMS policy setup failed"
         exit 1
     fi
