@@ -225,51 +225,6 @@ else
     log_step "Step 2: KMS (Already Complete)"
 fi
 
-# Attach instance profile to EC2 (required for SSM)
-INSTANCE_ID=$(state_get "instance_id" 2>/dev/null || echo "")
-PROFILE_NAME="EnclaveInstanceProfile"
-PROFILE_ATTACHED=false
-
-if [[ -n "$INSTANCE_ID" ]]; then
-    CURRENT_PROFILE=$(aws ec2 describe-iam-instance-profile-associations \
-        --region "$AWS_REGION" \
-        --filters "Name=instance-id,Values=$INSTANCE_ID" \
-        --query 'IamInstanceProfileAssociations[0].IamInstanceProfile.Arn' \
-        --output text 2>/dev/null || echo "None")
-    
-    if [[ "$CURRENT_PROFILE" == "None" ]] || [[ -z "$CURRENT_PROFILE" ]]; then
-        log_info "Attaching instance profile to EC2..."
-        aws ec2 associate-iam-instance-profile \
-            --region "$AWS_REGION" \
-            --instance-id "$INSTANCE_ID" \
-            --iam-instance-profile Name="$PROFILE_NAME" &>/dev/null || true
-        PROFILE_ATTACHED=true
-    else
-        log_info "Instance profile already attached, skipping restart"
-    fi
-    
-    # Only restart if we just attached the profile
-    if [[ "$PROFILE_ATTACHED" == "true" ]]; then
-        log_info "Restarting SSM agent to load credentials (~30s)..."
-        
-        # Restart SSM agent via SSH (much faster than full instance restart)
-        INSTANCE_IP=$(state_get "instance_ip" 2>/dev/null)
-        KEY_PATH="$HOME/.ssh/$(state_get "key_name" 2>/dev/null || echo "nitro-enclave-key").pem"
-        
-        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i "$KEY_PATH" ec2-user@"$INSTANCE_IP" \
-            "sudo systemctl restart amazon-ssm-agent" 2>/dev/null || {
-            log_warn "SSH restart failed, doing full instance restart (~3 min)..."
-            aws ec2 stop-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" >/dev/null
-            aws ec2 wait instance-stopped --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
-            aws ec2 start-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" >/dev/null
-            aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
-        }
-        
-        log_info "Waiting for SSM agent to reconnect..."
-        sleep 30
-    fi
-fi
-
 # Step 3: Instance Setup via SSM (must be before Temporal on EC2)
 if ! state_check "instance_setup"; then
     log_step "Step 3: Setting up EC2 Instance via SSM"

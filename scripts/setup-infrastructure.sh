@@ -143,6 +143,7 @@ else
         --instance-type "$INSTANCE_TYPE" \
         --key-name "$KEY_NAME" \
         --security-group-ids "$SG_ID" \
+        --iam-instance-profile Name=EnclaveInstanceProfile \
         --enclave-options 'Enabled=true' \
         --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":${VOLUME_SIZE},\"VolumeType\":\"gp3\"}}]" \
         --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${INSTANCE_NAME}}]" \
