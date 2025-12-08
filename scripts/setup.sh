@@ -236,10 +236,12 @@ if [[ -n "$INSTANCE_ID" ]]; then
     
     if [[ "$CURRENT_PROFILE" != "associated" ]]; then
         log_info "Attaching instance profile..."
-        aws ec2 associate-iam-instance-profile \
+        if ! aws ec2 associate-iam-instance-profile \
             --region "$AWS_REGION" \
             --instance-id "$INSTANCE_ID" \
-            --iam-instance-profile Name=EnclaveInstanceProfile 2>/dev/null || true
+            --iam-instance-profile Name=EnclaveInstanceProfile; then
+            log_warn "Profile attach returned error (may already be associating)"
+        fi
         
         # Poll for IAM association status
         log_info "Waiting for IAM profile association..."
