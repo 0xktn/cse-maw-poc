@@ -4,7 +4,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/state.sh"
-source "$SCRIPT_DIR/lib/logging.sh"
+
+# Simple logging
+log_info() { echo "[INFO] $*"; }
+log_error() { echo "[ERROR] $*" >&2; }
 
 # Get instance info
 INSTANCE_ID=$(state_get "instance_id" 2>/dev/null || echo "")
@@ -18,22 +21,14 @@ fi
 
 log_info "Triggering workflow on EC2 instance: $INSTANCE_ID"
 
-# Command to trigger workflow via Temporal CLI
-TRIGGER_CMD='
-cd /home/ec2-user/confidential-multi-agent-workflow
-temporal workflow start \
-    --namespace confidential-workflow-poc \
-    --task-queue confidential-workflow-tasks \
-    --type SecureAgentWorkflow \
-    --input "{}" \
-    --workflow-id "test-$(date +%s)" 2>&1
-'
+# Get timestamp for unique workflow ID
+WORKFLOW_ID="test-$(date +%s)"
 
 COMMAND_ID=$(aws ssm send-command \
     --region "$AWS_REGION" \
     --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
-    --parameters "commands=[\"$TRIGGER_CMD\"]" \
+    --parameters "commands=[\"docker exec temporal temporal --address temporal:7233 workflow start --namespace confidential-workflow-poc --task-queue confidential-workflow-tasks --type SecureAgentWorkflow --input '{}' --workflow-id $WORKFLOW_ID 2>&1 || echo FAILED\"]" \
     --query 'Command.CommandId' \
     --output text 2>/dev/null)
 
