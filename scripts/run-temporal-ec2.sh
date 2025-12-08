@@ -85,7 +85,7 @@ networks:
 COMPOSE",
     "mkdir -p dynamicconfig",
     "echo \"{}\" > dynamicconfig/development-sql.yaml",
-    "docker compose up -d 2>&1",
+    "sudo docker-compose up -d 2>&1 || sudo docker compose up -d 2>&1",
     "sleep 30",
     "docker ps | grep temporal"
 ]'
