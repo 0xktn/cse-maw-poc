@@ -155,7 +155,7 @@ else
             --query 'Instances[0].InstanceId' \
             --output text)
     else
-        log_warn "Instance profile not yet created, will attach after Step 2..."
+        log_info "Instance profile will be attached after Step 2"
         INSTANCE_ID=$(aws ec2 run-instances \
             --region "$AWS_REGION" \
             --image-id "$AMI_ID" \
