@@ -123,6 +123,7 @@ while true; do
     
     case "$STATUS" in
         "Success")
+            echo ""
             log_info "Temporal setup completed!"
             break
             ;;
@@ -176,6 +177,7 @@ while true; do
     
     case "$STATUS" in
         "Success")
+            echo ""
             log_info "Temporal is ready!"
             break
             ;;
