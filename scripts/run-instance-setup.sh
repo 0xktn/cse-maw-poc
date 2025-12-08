@@ -64,7 +64,6 @@ fi
 log_info "Running instance setup via SSM..."
 
 COMMANDS='[
-    "sudo dnf update -y",
     "sudo dnf install -y aws-nitro-enclaves-cli aws-nitro-enclaves-cli-devel docker git python3 python3-pip",
     "sudo systemctl enable --now docker",
     "sudo mkdir -p /usr/local/lib/docker/cli-plugins",
