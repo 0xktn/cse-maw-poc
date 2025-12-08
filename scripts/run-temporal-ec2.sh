@@ -148,14 +148,14 @@ echo ""
 log_info "Waiting for Temporal to be healthy..."
 
 WAIT_CMD='
-for i in {1..60}; do
+for i in {1..120}; do
     STATUS=$(docker inspect temporal --format="{{.State.Health.Status}}" 2>/dev/null || echo "starting")
     if [ "$STATUS" = "healthy" ]; then
         echo "Temporal is healthy!"
         exit 0
     fi
     echo -n "."
-    sleep 5
+    sleep 3
 done
 echo ""
 echo "Timeout waiting for Temporal health check"
