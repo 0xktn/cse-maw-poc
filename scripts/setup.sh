@@ -241,18 +241,45 @@ if [[ -n "$INSTANCE_ID" ]]; then
             --instance-id "$INSTANCE_ID" \
             --iam-instance-profile Name=EnclaveInstanceProfile 2>/dev/null || true
         
-        log_info "Waiting for IAM propagation (30s)..."
-        sleep 30
+        # Poll for IAM association status
+        log_info "Waiting for IAM profile association..."
+        for i in {1..30}; do
+            STATE=$(aws ec2 describe-iam-instance-profile-associations \
+                --region "$AWS_REGION" \
+                --filters "Name=instance-id,Values=$INSTANCE_ID" \
+                --query 'IamInstanceProfileAssociations[0].State' \
+                --output text 2>/dev/null || echo "")
+            if [[ "$STATE" == "associated" ]]; then
+                log_info "Profile associated!"
+                break
+            fi
+            echo -n "."
+            sleep 2
+        done
+        echo ""
         
+        # Restart SSM and poll for online status
         log_info "Restarting SSM agent..."
         INSTANCE_IP=$(state_get "instance_ip" 2>/dev/null)
         KEY_PATH="$HOME/.ssh/$(state_get "key_name" 2>/dev/null || echo "nitro-enclave-key").pem"
-        
         ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i "$KEY_PATH" ec2-user@"$INSTANCE_IP" \
             "sudo systemctl restart amazon-ssm-agent" 2>/dev/null || true
         
-        log_info "Waiting for SSM agent to connect (30s)..."
-        sleep 30
+        log_info "Waiting for SSM agent to come online..."
+        for i in {1..30}; do
+            SSM_STATUS=$(aws ssm describe-instance-information \
+                --region "$AWS_REGION" \
+                --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+                --query 'InstanceInformationList[0].PingStatus' \
+                --output text 2>/dev/null || echo "")
+            if [[ "$SSM_STATUS" == "Online" ]]; then
+                log_info "SSM agent online!"
+                break
+            fi
+            echo -n "."
+            sleep 2
+        done
+        echo ""
     fi
 fi
 
