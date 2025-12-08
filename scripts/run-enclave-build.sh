@@ -65,6 +65,7 @@ while true; do
     
     case "$STATUS" in
         "Success")
+            echo ""
             log_info "Enclave build completed!"
             break
             ;;
@@ -84,7 +85,6 @@ while true; do
             ;;
     esac
 done
-echo ""
 
 # Get build output and extract PCR0
 log_info "Extracting PCR0 from build output..."

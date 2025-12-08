@@ -287,6 +287,7 @@ if [[ -n "$INSTANCE_ID" ]]; then
                 --query 'InstanceInformationList[0].PingStatus' \
                 --output text 2>/dev/null || echo "")
             if [[ "$SSM_STATUS" == "Online" ]]; then
+                echo ""
                 log_info "SSM agent online!"
                 break
             fi

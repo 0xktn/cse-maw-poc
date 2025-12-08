@@ -143,11 +143,9 @@ while true; do
             ;;
     esac
 done
-echo ""
 
 # Wait for Temporal to be healthy (using Docker's native healthcheck)
 log_info "Waiting for Temporal to be healthy..."
-echo ""
 
 # Simple inline health check loop
 HEALTH_CHECK=$(aws ssm send-command \
