@@ -217,6 +217,27 @@ else
     log_step "Step 2: KMS (Already Complete)"
 fi
 
+# Attach instance profile to EC2 (required for SSM)
+INSTANCE_ID=$(state_get "instance_id" 2>/dev/null || echo "")
+PROFILE_NAME="EnclaveInstanceProfile"
+if [[ -n "$INSTANCE_ID" ]]; then
+    CURRENT_PROFILE=$(aws ec2 describe-iam-instance-profile-associations \
+        --region "$AWS_REGION" \
+        --filters "Name=instance-id,Values=$INSTANCE_ID" \
+        --query 'IamInstanceProfileAssociations[0].IamInstanceProfile.Arn' \
+        --output text 2>/dev/null || echo "None")
+    
+    if [[ "$CURRENT_PROFILE" == "None" ]] || [[ -z "$CURRENT_PROFILE" ]]; then
+        log_info "Attaching instance profile to EC2..."
+        aws ec2 associate-iam-instance-profile \
+            --region "$AWS_REGION" \
+            --instance-id "$INSTANCE_ID" \
+            --iam-instance-profile Name="$PROFILE_NAME" 2>/dev/null || log_warn "Profile may already be attached"
+        log_info "Waiting for profile to propagate (30s)..."
+        sleep 30
+    fi
+fi
+
 # Step 3: Instance Setup via SSM (must be before Temporal on EC2)
 if ! state_check "instance_setup"; then
     log_step "Step 3: Setting up EC2 Instance via SSM"
