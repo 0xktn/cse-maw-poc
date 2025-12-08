@@ -75,3 +75,4 @@ temp/
 *.tmp
 .state/
 INSECURE_PASSWORD_TEXT
+*.b64
