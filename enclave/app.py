@@ -2,6 +2,7 @@
 Enclave Application Entry Point
 
 Implements confidential processing with KMS attestation and AES-256-GCM encryption.
+KMS configuration is received from host via vsock on first connection.
 """
 
 import os
@@ -10,7 +11,7 @@ import json
 import socket
 import base64
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import boto3
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -31,32 +32,16 @@ class KMSAttestationClient:
     def get_attestation_document(self) -> bytes:
         """Generate attestation document from NSM device"""
         try:
-            # Open NSM device
-            with open('/dev/nsm', 'rb') as nsm:
-                # Request attestation document
-                # Format: https://github.com/aws/aws-nitro-enclaves-nsm-api
-                request = {
-                    'Attestation': {
-                        'user_data': None,
-                        'nonce': None,
-                        'public_key': None
-                    }
-                }
-                
-                # Write request (simplified - actual NSM uses CBOR)
-                # For now, use aws-nsm-interface library
-                from nsm_util import nsm_get_attestation_doc
-                doc = nsm_get_attestation_doc()
-                return doc
+            from nsm_util import nsm_get_attestation_doc
+            doc = nsm_get_attestation_doc()
+            return doc
         except Exception as e:
-            logger.error(f"Failed to get attestation document: {e}")
-            # Fallback: return empty bytes for testing without NSM
-            logger.warning("Using empty attestation document (testing mode)")
+            logger.warning(f"NSM not available, using fallback: {e}")
             return b''
         
     def decrypt_tsk(self) -> bytes:
         """Request TSK from KMS with attestation"""
-        logger.info("Requesting TSK from KMS with attestation...")
+        logger.info("Requesting TSK from KMS...")
         
         try:
             client = boto3.client('kms', region_name=self.region)
@@ -73,10 +58,10 @@ class KMSAttestationClient:
                     }
                 )
                 self.tsk = response['Plaintext']
-                logger.info("TSK decrypted successfully with attestation")
+                logger.info("TSK decrypted with attestation")
             else:
-                # Fallback: decrypt without attestation (testing)
-                logger.warning("Decrypting TSK without attestation (testing mode)")
+                # Fallback: decrypt without attestation
+                logger.warning("Decrypting without attestation (testing mode)")
                 response = client.decrypt(CiphertextBlob=self.encrypted_tsk)
                 self.tsk = response['Plaintext']
                 
@@ -115,9 +100,11 @@ class EncryptionService:
 class VsockServer:
     """vsock server for host communication"""
     
-    def __init__(self, encryption_service: EncryptionService, port: int = 5000):
+    def __init__(self, port: int = 5000):
         self.port = port
-        self.encryption_service = encryption_service
+        self.encryption_service: Optional[EncryptionService] = None
+        self.kms_client: Optional[KMSAttestationClient] = None
+        self.configured = False
         
     def start(self):
         """Listen on vsock"""
@@ -127,7 +114,7 @@ class VsockServer:
         sock.bind((socket.VMADDR_CID_ANY, self.port))
         sock.listen()
         
-        logger.info("vsock server listening, waiting for connections...")
+        logger.info("vsock server listening")
         
         while True:
             try:
@@ -141,62 +128,87 @@ class VsockServer:
         """Process request from host"""
         try:
             # Receive request
-            data = conn.recv(4096)
+            data = conn.recv(8192)
             if not data:
-                logger.warning("Empty request received")
+                logger.warning("Empty request")
                 conn.close()
                 return
                 
             request = json.loads(data.decode())
-            logger.info(f"Received request: {request.get('data', '')[:50]}...")
+            request_type = request.get('type', 'process')
             
-            # Process data (placeholder - add actual logic here)
+            # Handle configuration request
+            if request_type == 'configure':
+                logger.info("Received configuration from host")
+                self.configure(request)
+                response = json.dumps({'status': 'configured'})
+                conn.sendall(response.encode())
+                conn.close()
+                return
+            
+            # Handle processing request
+            if not self.configured:
+                error = {'error': 'Enclave not configured'}
+                conn.sendall(json.dumps(error).encode())
+                conn.close()
+                return
+            
+            # Process data
             input_data = request.get('data', '')
             result = f"Processed: {input_data}"
             
             # Encrypt result
             encrypted = self.encryption_service.encrypt(result.encode())
-            logger.info("Result encrypted successfully")
+            logger.info("Result encrypted")
             
             # Send response
             response = json.dumps(encrypted)
             conn.sendall(response.encode())
             
         except Exception as e:
-            logger.error(f"Error processing request: {e}")
+            logger.error(f"Error processing request: {e}", exc_info=True)
             error_response = json.dumps({'error': str(e)})
-            conn.sendall(error_response.encode())
+            try:
+                conn.sendall(error_response.encode())
+            except:
+                pass
         finally:
             conn.close()
+            
+    def configure(self, config: Dict[str, Any]):
+        """Configure enclave with KMS settings from host"""
+        kms_key_id = config.get('kms_key_id')
+        encrypted_tsk = config.get('encrypted_tsk')
+        region = config.get('region', 'ap-southeast-1')
+        
+        if not kms_key_id or not encrypted_tsk:
+            raise ValueError("Missing KMS configuration")
+        
+        logger.info(f"Configuring with KMS key: {kms_key_id[:20]}...")
+        
+        # Initialize KMS client and decrypt TSK
+        self.kms_client = KMSAttestationClient(kms_key_id, encrypted_tsk, region)
+        tsk = self.kms_client.decrypt_tsk()
+        
+        # Initialize encryption service
+        self.encryption_service = EncryptionService(tsk)
+        self.configured = True
+        
+        logger.info("Enclave configured successfully")
 
 
 def main():
     """Main entry point"""
     logger.info("Starting enclave application...")
-    
-    # Get configuration from environment
-    kms_key_id = os.environ.get('KMS_KEY_ID')
-    encrypted_tsk_b64 = os.environ.get('ENCRYPTED_TSK')
-    region = os.environ.get('AWS_REGION', 'ap-southeast-1')
-    
-    if not kms_key_id or not encrypted_tsk_b64:
-        logger.error("Missing required environment variables: KMS_KEY_ID, ENCRYPTED_TSK")
-        sys.exit(1)
+    logger.info("Waiting for configuration from host...")
     
     try:
-        # Initialize KMS client and decrypt TSK
-        kms_client = KMSAttestationClient(kms_key_id, encrypted_tsk_b64, region)
-        tsk = kms_client.decrypt_tsk()
-        
-        # Initialize encryption service
-        encryption_service = EncryptionService(tsk)
-        
-        # Start vsock server
-        server = VsockServer(encryption_service)
+        # Start vsock server (will receive config on first connection)
+        server = VsockServer()
         server.start()
         
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
+        logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
 
 

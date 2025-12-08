@@ -25,21 +25,12 @@ if [[ -z "$INSTANCE_ID" ]]; then
     exit 1
 fi
 
-# Get KMS configuration
-KMS_KEY_ID=$(state_get "kms_key_id" 2>/dev/null || echo "")
-ENCRYPTED_TSK=$(cat encrypted-tsk.b64 2>/dev/null || echo "")
+log_info "Starting enclave on EC2..."
 
-if [[ -z "$KMS_KEY_ID" ]] || [[ -z "$ENCRYPTED_TSK" ]]; then
-    log_warn "KMS configuration not found, enclave will fail to decrypt TSK"
-fi
-
-# Run enclave with environment variables
+# Run enclave with correct path
 COMMANDS="[
     \"cd /home/ec2-user/confidential-multi-agent-workflow\",
     \"export NITRO_CLI_ARTIFACTS=/home/ec2-user/confidential-multi-agent-workflow/build\",
-    \"export KMS_KEY_ID=$KMS_KEY_ID\",
-    \"export ENCRYPTED_TSK=$ENCRYPTED_TSK\",
-    \"export AWS_REGION=$AWS_REGION\",
     \"nitro-cli run-enclave --cpu-count 2 --memory 1024 --eif-path /home/ec2-user/confidential-multi-agent-workflow/build/enclave.eif --enclave-cid 16 2>&1 || echo ENCLAVE_FAILED\",
     \"sleep 3\",
     \"nitro-cli describe-enclaves\"
