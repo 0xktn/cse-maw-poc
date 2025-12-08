@@ -136,8 +136,8 @@ echo ""
 echo "Step Status:"
 state_check "infra" && echo "  ✓ Infrastructure (completed)" || echo "  ○ Infrastructure (pending)"
 state_check "kms" && echo "  ✓ KMS Configuration (completed)" || echo "  ○ KMS Configuration (pending)"
-state_check "temporal" && echo "  ✓ Temporal Server (completed)" || echo "  ○ Temporal Server (pending)"
 state_check "instance_setup" && echo "  ✓ Instance Setup (completed)" || echo "  ○ Instance Setup (pending)"
+state_check "temporal" && echo "  ✓ Temporal Server (completed)" || echo "  ○ Temporal Server (pending)"
 state_check "enclave_built" && echo "  ✓ Enclave Built (completed)" || echo "  ○ Enclave Built (pending)"
 state_check "kms_policy" && echo "  ✓ KMS Policy (completed)" || echo "  ○ KMS Policy (pending)"
 state_check "enclave_running" && echo "  ✓ Enclave Running (completed)" || echo "  ○ Enclave Running (pending)"
@@ -175,19 +175,6 @@ if ! command -v sqlite3 &> /dev/null; then
     log_error "sqlite3 not found. Please install it first."
     exit 1
 fi
-
-if ! command -v docker &> /dev/null; then
-    log_error "Docker not found. Please install Docker first."
-    exit 1
-fi
-
-if ! docker info &> /dev/null; then
-    log_error "Docker daemon not running. Please start Docker first."
-    log_error "  macOS: Open Docker Desktop"
-    log_error "  Linux: sudo systemctl start docker"
-    exit 1
-fi
-log_info "Docker: $(docker --version)"
 
 if ! aws sts get-caller-identity &> /dev/null; then
     log_error "AWS credentials not configured. Run 'aws configure' first."
@@ -230,25 +217,9 @@ else
     log_step "Step 2: KMS (Already Complete)"
 fi
 
-# Step 3: Temporal
-if ! state_check "temporal"; then
-    log_step "Step 3: Setting up Temporal Server"
-    state_start "temporal"
-    
-    if "$SCRIPT_DIR/setup-temporal.sh"; then
-        state_complete "temporal"
-    else
-        state_fail "temporal"
-        log_error "Temporal setup failed"
-        exit 1
-    fi
-else
-    log_step "Step 3: Temporal (Already Complete)"
-fi
-
-# Step 4: Instance Setup via SSM
+# Step 3: Instance Setup via SSM (must be before Temporal on EC2)
 if ! state_check "instance_setup"; then
-    log_step "Step 4: Setting up EC2 Instance via SSM"
+    log_step "Step 3: Setting up EC2 Instance via SSM"
     state_start "instance_setup"
     
     if "$SCRIPT_DIR/run-instance-setup.sh"; then
@@ -259,7 +230,23 @@ if ! state_check "instance_setup"; then
         exit 1
     fi
 else
-    log_step "Step 4: Instance Setup (Already Complete)"
+    log_step "Step 3: Instance Setup (Already Complete)"
+fi
+
+# Step 4: Temporal Server on EC2 via SSM
+if ! state_check "temporal"; then
+    log_step "Step 4: Setting up Temporal Server on EC2"
+    state_start "temporal"
+    
+    if "$SCRIPT_DIR/run-temporal-ec2.sh"; then
+        state_complete "temporal"
+    else
+        state_fail "temporal"
+        log_error "Temporal setup failed"
+        exit 1
+    fi
+else
+    log_step "Step 4: Temporal (Already Complete)"
 fi
 
 # Step 5: Build Enclave via SSM
