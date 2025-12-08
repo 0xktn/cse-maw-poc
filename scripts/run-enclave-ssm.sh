@@ -31,7 +31,7 @@ log_info "Starting enclave on EC2..."
 COMMANDS="[
     \"cd /home/ec2-user/confidential-multi-agent-workflow\",
     \"export NITRO_CLI_ARTIFACTS=/home/ec2-user/confidential-multi-agent-workflow/build\",
-    \"nitro-cli run-enclave --cpu-count 2 --memory 1024 --eif-path /home/ec2-user/confidential-multi-agent-workflow/build/enclave.eif --enclave-cid 16 2>&1 || echo ENCLAVE_FAILED\",
+    \"nitro-cli run-enclave --cpu-count 2 --memory 1024 --eif-path /home/ec2-user/confidential-multi-agent-workflow/build/enclave.eif --enclave-cid 16 --debug-mode 2>&1 || echo ENCLAVE_FAILED\",
     \"sleep 3\",
     \"nitro-cli describe-enclaves\"
 ]"
