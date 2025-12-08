@@ -1,223 +1,101 @@
 # KMS Configuration
 
-This guide covers AWS KMS setup for cryptographic attestation, enabling the enclave to securely retrieve the Trusted Session Key (TSK).
+This guide covers AWS KMS setup for cryptographic attestation with Nitro Enclaves.
 
-## Overview
-
-AWS KMS integrates with Nitro Enclaves through **cryptographic attestation**. The enclave generates an attestation document signed by the Nitro Hypervisor, which KMS validates before releasing the decryption key.
-
-```
-┌─────────────┐     Attestation Doc     ┌─────────────┐
-│   Enclave   │ ──────────────────────► │   AWS KMS   │
-│             │ ◄────────────────────── │             │
-└─────────────┘     Decrypted Key       └─────────────┘
-```
-
-## Prerequisites
-
-- AWS CLI configured with appropriate permissions
-- Your Enclave Image File (EIF) built (to obtain PCR0 hash)
-- IAM permissions for KMS key management
-
-## Step 1: Create KMS Key
-
-### Using AWS Console
-
-1. Navigate to **KMS** → **Customer managed keys**
-2. Click **Create key**
-3. Settings:
-   - Key type: **Symmetric**
-   - Key usage: **Encrypt and decrypt**
-4. Add alias: `confidential-workflow-tsk`
-5. Define key administrators
-6. Define key usage permissions (will modify policy later)
-7. Review and create
-
-### Using AWS CLI
+## Quick Start (Automated)
 
 ```bash
-# Create the key
-aws kms create-key \
-  --description "Trusted Session Key for Confidential Multi-Agent Workflow" \
-  --key-usage ENCRYPT_DECRYPT \
-  --key-spec SYMMETRIC_DEFAULT
+./scripts/setup-kms.sh
+```
 
-# Note the KeyId from the output, then create an alias
+After building your enclave, apply the attestation policy:
+
+```bash
+./scripts/setup-kms-policy.sh <PCR0_VALUE>
+```
+
+---
+
+## Manual Steps (Reference)
+
+### 1. Create KMS Key
+
+```bash
+export AWS_REGION="ap-southeast-1"
+
+KEY_ID=$(aws kms create-key \
+  --description "Trusted Session Key for Confidential Workflow" \
+  --query 'KeyMetadata.KeyId' \
+  --output text)
+
 aws kms create-alias \
   --alias-name alias/confidential-workflow-tsk \
-  --target-key-id <KeyId>
+  --target-key-id $KEY_ID
 ```
 
-## Step 2: Obtain Enclave PCR Values
-
-When you build your enclave image, the `nitro-cli` outputs PCR (Platform Configuration Register) values:
+### 2. Create IAM Role
 
 ```bash
-nitro-cli build-enclave --docker-uri your-enclave-image:latest --output-file enclave.eif
-```
-
-Example output:
-```
-{
-  "Measurements": {
-    "HashAlgorithm": "Sha384",
-    "PCR0": "abc123...def456",  # Enclave image hash
-    "PCR1": "...",               # Kernel hash
-    "PCR2": "..."                # Application hash
-  }
-}
-```
-
-> [!IMPORTANT]
-> Save the **PCR0** value! This is your enclave's unique software identity and is required for the KMS policy.
-
-## Step 3: Configure KMS Key Policy
-
-The key policy enforces that only your specific enclave can decrypt data. Modify the policy to include attestation conditions:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Id": "confidential-workflow-key-policy",
-  "Statement": [
-    {
-      "Sid": "Enable IAM User Permissions",
+# Create role for EC2
+aws iam create-role \
+  --role-name EnclaveInstanceRole \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
       "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT_ID:root"
-      },
-      "Action": "kms:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "Allow Enclave Decrypt",
+      "Principal": {"Service": "ec2.amazonaws.com"},
+      "Action": "sts:AssumeRole"
+    }]
+  }'
+
+# Attach KMS decrypt permission
+aws iam put-role-policy \
+  --role-name EnclaveInstanceRole \
+  --policy-name KMSDecryptPolicy \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
       "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT_ID:role/EnclaveInstanceRole"
-      },
       "Action": "kms:Decrypt",
-      "Resource": "*",
-      "Condition": {
-        "StringEqualsIgnoreCase": {
-          "kms:RecipientAttestation:ImageSha384": "PCR0_VALUE_HERE"
-        }
-      }
-    },
-    {
-      "Sid": "Allow Key Administrators",
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT_ID:user/admin"
-      },
-      "Action": [
-        "kms:Create*",
-        "kms:Describe*",
-        "kms:Enable*",
-        "kms:List*",
-        "kms:Put*",
-        "kms:Update*",
-        "kms:Revoke*",
-        "kms:Disable*",
-        "kms:Get*",
-        "kms:Delete*",
-        "kms:TagResource",
-        "kms:UntagResource",
-        "kms:ScheduleKeyDeletion",
-        "kms:CancelKeyDeletion"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
+      "Resource": "arn:aws:kms:REGION:ACCOUNT:key/KEY_ID"
+    }]
+  }'
 ```
 
-### Apply the Policy
+### 3. Apply Attestation Policy
+
+After building your enclave (`nitro-cli build-enclave`), get the PCR0 value and apply:
 
 ```bash
 aws kms put-key-policy \
-  --key-id alias/confidential-workflow-tsk \
+  --key-id $KEY_ID \
   --policy-name default \
-  --policy file://kms-policy.json
+  --policy '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "AllowRoot",
+        "Effect": "Allow",
+        "Principal": {"AWS": "arn:aws:iam::ACCOUNT:root"},
+        "Action": "kms:*",
+        "Resource": "*"
+      },
+      {
+        "Sid": "AllowEnclaveDecrypt",
+        "Effect": "Allow",
+        "Principal": {"AWS": "arn:aws:iam::ACCOUNT:role/EnclaveInstanceRole"},
+        "Action": "kms:Decrypt",
+        "Resource": "*",
+        "Condition": {
+          "StringEqualsIgnoreCase": {
+            "kms:RecipientAttestation:ImageSha384": "PCR0_VALUE"
+          }
+        }
+      }
+    ]
+  }'
 ```
-
-## Step 4: Create IAM Role for EC2 Instance
-
-The EC2 instance needs an IAM role to communicate with KMS:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "kms:Decrypt"
-      ],
-      "Resource": "arn:aws:kms:REGION:ACCOUNT_ID:key/KEY_ID"
-    }
-  ]
-}
-```
-
-Attach this policy to your EC2 instance role.
-
-## Step 5: Generate and Encrypt the TSK
-
-For the POC, generate a Data Encryption Key (DEK) that will serve as the TSK:
-
-```bash
-# Generate a data key
-aws kms generate-data-key \
-  --key-id alias/confidential-workflow-tsk \
-  --key-spec AES_256 \
-  --output json > data-key.json
-
-# The output contains:
-# - Plaintext: Base64-encoded key (use for initial encryption, then discard)
-# - CiphertextBlob: Encrypted key (store this, enclave will decrypt it)
-```
-
-> [!CAUTION]
-> Never store the plaintext key. The enclave should be the only entity that receives the plaintext key through KMS decryption with attestation.
-
-## Verification
-
-### Test Key Policy (without attestation)
-
-```bash
-# This should FAIL if policy is correctly configured
-aws kms decrypt \
-  --key-id alias/confidential-workflow-tsk \
-  --ciphertext-blob fileb://encrypted-key.bin
-```
-
-Expected error: `AccessDeniedException` (attestation required)
-
-### Verify via CloudTrail
-
-After enclave successfully decrypts:
-1. Go to **CloudTrail** → **Event history**
-2. Filter by Event name: `Decrypt`
-3. Verify the event contains `attestationDocument` field
-
-## Troubleshooting
-
-### Issue: `KMS Decrypt failed - Invalid attestation document`
-
-**Cause**: PCR0 in policy doesn't match current enclave image
-
-**Solution**:
-1. Rebuild enclave: `nitro-cli build-enclave ...`
-2. Note the new PCR0 value
-3. Update KMS key policy with new PCR0
-4. Restart enclave
-
-### Issue: `AccessDeniedException` even with valid attestation
-
-**Cause**: IAM role missing KMS permissions
-
-**Solution**: Verify the EC2 instance role has `kms:Decrypt` permission for the key
 
 ## Next Steps
 
-- [03-temporal-setup.md](./03-temporal-setup.md) - Set up Temporal orchestration server
+- [03-temporal-setup.md](./03-temporal-setup.md) - Set up Temporal server
