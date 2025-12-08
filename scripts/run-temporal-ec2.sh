@@ -146,18 +146,20 @@ echo ""
 
 # Wait for Temporal to be healthy (using Docker's native healthcheck)
 log_info "Waiting for Temporal to be healthy..."
+echo ""
 
 WAIT_CMD='
-for i in {1..120}; do
+i=0
+while [ $i -lt 60 ]; do
     STATUS=$(docker inspect temporal --format="{{.State.Health.Status}}" 2>/dev/null || echo "starting")
     if [ "$STATUS" = "healthy" ]; then
         echo "Temporal is healthy!"
         exit 0
     fi
-    echo -n "."
-    sleep 3
+    echo "Attempt $i: $STATUS"
+    sleep 5
+    i=$((i+1))
 done
-echo ""
 echo "Timeout waiting for Temporal health check"
 exit 1
 '
@@ -166,6 +168,7 @@ HEALTH_CHECK=$(aws ssm send-command \
     --region "$AWS_REGION" \
     --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
+    --timeout-seconds 600 \
     --parameters "commands=[\"$WAIT_CMD\"]" \
     --query 'Command.CommandId' \
     --output text 2>/dev/null)
