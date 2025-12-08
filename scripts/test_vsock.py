@@ -27,9 +27,13 @@ def main():
         
         resp_data = sock.recv(4096)
         print(f"Config Response: {resp_data}", flush=True)
+        sock.close()
         
         # 2. Process Step
-        print("Sending Process Request...", flush=True)
+        print("Sending Process Request (New Connection)...", flush=True)
+        sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        sock.connect((cid, port))
         # Encrypt input manually? No, wait. The enclave expects a base64 encoded payload that IT decrypts.
         # Since we use '0'*32 as limit traffic key, we need to encrypt with that to test properly.
         # OR we just rely on encryption service not failing on garbage if GCM auth tag check is disabled?
