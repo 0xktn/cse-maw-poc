@@ -28,7 +28,7 @@ COMMAND_ID=$(aws ssm send-command \
     --region "$AWS_REGION" \
     --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
-    --parameters "commands=[\"docker exec temporal temporal --address temporal:7233 workflow start --namespace confidential-workflow-poc --task-queue confidential-workflow-tasks --type SecureAgentWorkflow --input '{}' --workflow-id $WORKFLOW_ID 2>&1 || echo FAILED\"]" \
+    --parameters "commands=[\"docker exec temporal temporal --address temporal:7233 workflow start --namespace confidential-workflow-poc --task-queue confidential-workflow-tasks --type ConfidentialWorkflow --input '\\\"test-input-data\\\"' --workflow-id $WORKFLOW_ID 2>&1 || echo FAILED\"]" \
     --query 'Command.CommandId' \
     --output text 2>/dev/null)
 
