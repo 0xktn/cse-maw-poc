@@ -141,7 +141,7 @@ NAMESPACE_CMD=$(aws ssm send-command \
     --region "$AWS_REGION" \
     --instance-ids "$INSTANCE_ID" \
     --document-name "AWS-RunShellScript" \
-    --parameters 'commands=["docker exec temporal-admin-tools temporal operator namespace create '"$NAMESPACE"' 2>&1 || echo Namespace may already exist"]' \
+    --parameters 'commands=["docker exec temporal tctl --namespace '"$NAMESPACE"' namespace register 2>&1 || echo Namespace already exists"]' \
     --query 'Command.CommandId' \
     --output text 2>/dev/null || echo "")
 
