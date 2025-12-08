@@ -34,7 +34,20 @@ if [[ "$1" == "--status" ]]; then
         --query 'Command.CommandId' \
         --output text 2>/dev/null)
     
-    sleep 8
+    # Poll for completion
+    for i in {1..20}; do
+        STATUS=$(aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query 'Status' \
+            --output text 2>/dev/null || echo "Pending")
+        
+        if [[ "$STATUS" == "Success" ]]; then
+            break
+        fi
+        sleep 0.5
+    done
     
     RESULT=$(aws ssm get-command-invocation \
         --region "$AWS_REGION" \
@@ -65,7 +78,21 @@ COMMAND_ID=$(aws ssm send-command \
 
 log_info "Command sent: $COMMAND_ID"
 log_info "Waiting for response..."
-sleep 8
+
+# Poll for completion
+for i in {1..20}; do
+    STATUS=$(aws ssm get-command-invocation \
+        --region "$AWS_REGION" \
+        --command-id "$COMMAND_ID" \
+        --instance-id "$INSTANCE_ID" \
+        --query 'Status' \
+        --output text 2>/dev/null || echo "Pending")
+    
+    if [[ "$STATUS" == "Success" ]]; then
+        break
+    fi
+    sleep 0.5
+done
 
 # Get result
 RESULT=$(aws ssm get-command-invocation \
