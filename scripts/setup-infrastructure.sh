@@ -46,7 +46,13 @@ log_info "AMI ID: $AMI_ID"
 
 # Check/create key pair
 KEY_PATH="$HOME/.ssh/${KEY_NAME}.pem"
-AWS_KEY_EXISTS=$(aws ec2 describe-key-pairs --region "$AWS_REGION" --key-names "$KEY_NAME" 2>/dev/null && echo "yes" || echo "no")
+
+# Check if key exists in AWS (check exit code only)
+if aws ec2 describe-key-pairs --region "$AWS_REGION" --key-names "$KEY_NAME" &>/dev/null; then
+    AWS_KEY_EXISTS="yes"
+else
+    AWS_KEY_EXISTS="no"
+fi
 
 if [[ "$AWS_KEY_EXISTS" == "yes" ]] && [[ -f "$KEY_PATH" ]]; then
     log_warn "Key pair '$KEY_NAME' already exists (AWS + local)"
