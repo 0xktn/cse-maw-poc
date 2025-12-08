@@ -24,4 +24,4 @@ ENV PYTHONPATH=/app/deps
 # Enclave entry point
 COPY run.sh .
 RUN chmod +x run.sh
-CMD ["./run.sh"]
+CMD ["/app/run.sh"]
