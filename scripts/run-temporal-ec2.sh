@@ -71,7 +71,7 @@ services:
     volumes:
       - ./dynamicconfig:/etc/temporal/config/dynamicconfig
     healthcheck:
-      test: [\"CMD\", \"tctl\", \"cluster\", \"health\"]
+      test: [\"CMD\", \"tctl\", \"--address\", \"temporal:7233\", \"cluster\", \"health\"]
       interval: 10s
       timeout: 5s
       retries: 30
