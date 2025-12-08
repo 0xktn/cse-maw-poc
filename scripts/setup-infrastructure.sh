@@ -88,25 +88,54 @@ else
 fi
 state_set "sg_id" "$SG_ID"
 
-# Launch instance
-log_info "Launching EC2 instance..."
-INSTANCE_ID=$(aws ec2 run-instances \
+# Check for existing instance with same name (singleton pattern)
+log_info "Checking for existing instance '$INSTANCE_NAME'..."
+EXISTING_INSTANCE=$(aws ec2 describe-instances \
     --region "$AWS_REGION" \
-    --image-id "$AMI_ID" \
-    --instance-type "$INSTANCE_TYPE" \
-    --key-name "$KEY_NAME" \
-    --security-group-ids "$SG_ID" \
-    --enclave-options 'Enabled=true' \
-    --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":${VOLUME_SIZE},\"VolumeType\":\"gp3\"}}]" \
-    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${INSTANCE_NAME}}]" \
-    --query 'Instances[0].InstanceId' \
-    --output text)
-state_set "instance_id" "$INSTANCE_ID" --encrypt
-log_info "Instance: $INSTANCE_ID"
+    --filters "Name=tag:Name,Values=$INSTANCE_NAME" "Name=instance-state-name,Values=running,stopped,pending" \
+    --query 'Reservations[0].Instances[0].InstanceId' \
+    --output text 2>/dev/null || echo "None")
 
-# Wait for running
-log_info "Waiting for instance..."
-aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
+if [[ "$EXISTING_INSTANCE" != "None" ]] && [[ -n "$EXISTING_INSTANCE" ]]; then
+    log_warn "Found existing instance: $EXISTING_INSTANCE"
+    
+    # Get instance state
+    INSTANCE_STATE=$(aws ec2 describe-instances \
+        --region "$AWS_REGION" \
+        --instance-ids "$EXISTING_INSTANCE" \
+        --query 'Reservations[0].Instances[0].State.Name' \
+        --output text)
+    
+    if [[ "$INSTANCE_STATE" == "stopped" ]]; then
+        log_info "Instance is stopped, starting it..."
+        aws ec2 start-instances --region "$AWS_REGION" --instance-ids "$EXISTING_INSTANCE"
+        aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$EXISTING_INSTANCE"
+    fi
+    
+    INSTANCE_ID=$EXISTING_INSTANCE
+    log_info "Reusing instance: $INSTANCE_ID"
+else
+    # Launch new instance
+    log_info "No existing instance found. Launching new EC2 instance..."
+    INSTANCE_ID=$(aws ec2 run-instances \
+        --region "$AWS_REGION" \
+        --image-id "$AMI_ID" \
+        --instance-type "$INSTANCE_TYPE" \
+        --key-name "$KEY_NAME" \
+        --security-group-ids "$SG_ID" \
+        --enclave-options 'Enabled=true' \
+        --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"VolumeSize\":${VOLUME_SIZE},\"VolumeType\":\"gp3\"}}]" \
+        --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${INSTANCE_NAME}}]" \
+        --query 'Instances[0].InstanceId' \
+        --output text)
+    log_info "Created instance: $INSTANCE_ID"
+    
+    # Wait for running
+    log_info "Waiting for instance..."
+    aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
+fi
+
+state_set "instance_id" "$INSTANCE_ID" --encrypt
 
 # Get IP
 INSTANCE_IP=$(aws ec2 describe-instances \
