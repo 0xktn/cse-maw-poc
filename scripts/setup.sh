@@ -58,7 +58,8 @@ Options:
     -t, --type TYPE         EC2 instance type (default: $DEFAULT_INSTANCE_TYPE)
     --status                Show current setup status
     --remote-status         Show status including remote EC2 state
-    --reset                 Reset all state and start fresh
+    --reset                 Reset local state only
+    --clean                 Delete ALL AWS resources and reset
     --dry-run               Preview without executing
 
 Examples:
@@ -77,6 +78,7 @@ while [[ $# -gt 0 ]]; do
         --status) SHOW_STATUS=true; shift ;;
         --remote-status) SHOW_REMOTE_STATUS=true; shift ;;
         --reset) RESET_STATE=true; shift ;;
+        --clean) CLEAN_ALL=true; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
         *) log_error "Unknown option: $1"; show_help; exit 1 ;;
     esac
@@ -85,9 +87,15 @@ done
 # Initialize state
 state_init
 
-# Handle --reset
+# Handle --clean (delete all AWS resources)
+if [[ "$CLEAN_ALL" == "true" ]]; then
+    "$SCRIPT_DIR/cleanup.sh"
+    exit 0
+fi
+
+# Handle --reset (local state only)
 if [[ "$RESET_STATE" == "true" ]]; then
-    log_warn "Resetting all state..."
+    log_warn "Resetting local state only (use --clean to delete AWS resources)..."
     state_reset
     log_info "State reset complete"
     exit 0

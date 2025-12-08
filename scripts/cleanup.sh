@@ -1,6 +1,6 @@
 #!/bin/bash
-# Cleanup Script
-# Removes all resources created by setup scripts
+# Cleanup Script - Delete all AWS resources
+# This terminates EC2, deletes IAM roles, KMS keys, security groups, and key pairs
 
 set -e
 
@@ -15,82 +15,92 @@ NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-echo -e "${RED}WARNING: This will delete all POC resources!${NC}"
+AWS_REGION=$(state_get "aws_region" 2>/dev/null || echo "ap-southeast-1")
+INSTANCE_NAME="nitro-enclave-poc"
+KEY_NAME="nitro-enclave-key"
+SG_NAME="nitro-enclave-sg"
+ROLE_NAME="EnclaveInstanceRole"
+PROFILE_NAME="EnclaveInstanceProfile"
+
 echo ""
-state_status
+echo "========================================"
+echo "  Cleaning up ALL AWS resources"
+echo "========================================"
 echo ""
-read -p "Are you sure? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Cancelled."
-    exit 0
+
+# 1. Terminate EC2 instances with matching name
+log_info "Finding EC2 instances named '$INSTANCE_NAME'..."
+INSTANCES=$(aws ec2 describe-instances \
+    --region "$AWS_REGION" \
+    --filters "Name=tag:Name,Values=$INSTANCE_NAME" "Name=instance-state-name,Values=running,stopped,pending" \
+    --query 'Reservations[].Instances[].InstanceId' \
+    --output text 2>/dev/null || echo "")
+
+if [[ -n "$INSTANCES" ]]; then
+    log_warn "Terminating instances: $INSTANCES"
+    aws ec2 terminate-instances --region "$AWS_REGION" --instance-ids $INSTANCES >/dev/null
+    log_info "Waiting for termination..."
+    aws ec2 wait instance-terminated --region "$AWS_REGION" --instance-ids $INSTANCES 2>/dev/null || true
+    log_info "Instances terminated"
+else
+    log_info "No matching instances found"
 fi
 
-# Get values from state
-AWS_REGION=$(state_get "aws_region" 2>/dev/null || echo "")
-INSTANCE_ID=$(state_get "instance_id" 2>/dev/null || echo "")
-SG_ID=$(state_get "sg_id" 2>/dev/null || echo "")
-KEY_NAME=$(state_get "key_name" 2>/dev/null || echo "")
-KEY_ID=$(state_get "kms_key_id" 2>/dev/null || echo "")
-KEY_ALIAS=$(state_get "kms_key_alias" 2>/dev/null || echo "")
-ROLE_NAME=$(state_get "iam_role_name" 2>/dev/null || echo "")
-TEMPORAL_DIR=$(state_get "temporal_dir" 2>/dev/null || echo "")
+# 2. Delete IAM instance profile
+log_info "Deleting IAM instance profile..."
+aws iam remove-role-from-instance-profile \
+    --instance-profile-name "$PROFILE_NAME" \
+    --role-name "$ROLE_NAME" 2>/dev/null || true
+aws iam delete-instance-profile \
+    --instance-profile-name "$PROFILE_NAME" 2>/dev/null || true
+log_info "Instance profile deleted"
 
-# Terminate EC2
-if [ -n "$INSTANCE_ID" ] && [ -n "$AWS_REGION" ]; then
-    log_info "Terminating EC2: $INSTANCE_ID"
-    aws ec2 terminate-instances --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" 2>/dev/null || true
-    aws ec2 wait instance-terminated --region "$AWS_REGION" --instance-ids "$INSTANCE_ID" 2>/dev/null || true
-fi
+# 3. Delete IAM role and policies
+log_info "Deleting IAM role..."
+aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name KMSDecryptPolicy 2>/dev/null || true
+aws iam detach-role-policy --role-name "$ROLE_NAME" --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore 2>/dev/null || true
+aws iam delete-role --role-name "$ROLE_NAME" 2>/dev/null || true
+log_info "IAM role deleted"
 
-# Delete security group
-if [ -n "$SG_ID" ] && [ -n "$AWS_REGION" ]; then
-    log_info "Deleting security group: $SG_ID"
+# 4. Delete security group
+log_info "Deleting security group..."
+SG_ID=$(aws ec2 describe-security-groups \
+    --region "$AWS_REGION" \
+    --filters "Name=group-name,Values=$SG_NAME" \
+    --query 'SecurityGroups[0].GroupId' \
+    --output text 2>/dev/null || echo "None")
+if [[ "$SG_ID" != "None" ]] && [[ -n "$SG_ID" ]]; then
     aws ec2 delete-security-group --region "$AWS_REGION" --group-id "$SG_ID" 2>/dev/null || true
+    log_info "Security group deleted: $SG_ID"
+else
+    log_info "No security group found"
 fi
 
-# Delete key pair
-if [ -n "$KEY_NAME" ] && [ -n "$AWS_REGION" ]; then
-    log_info "Deleting key pair: $KEY_NAME"
-    aws ec2 delete-key-pair --region "$AWS_REGION" --key-name "$KEY_NAME" 2>/dev/null || true
-    rm -f ~/.ssh/${KEY_NAME}.pem
+# 5. Delete key pair
+log_info "Deleting key pair..."
+aws ec2 delete-key-pair --region "$AWS_REGION" --key-name "$KEY_NAME" 2>/dev/null || true
+if [[ -f "$HOME/.ssh/${KEY_NAME}.pem" ]]; then
+    rm -f "$HOME/.ssh/${KEY_NAME}.pem" 2>/dev/null || true
+    log_info "Deleted local key file"
 fi
+log_info "Key pair deleted"
 
-# Delete KMS
-if [ -n "$KEY_ALIAS" ] && [ -n "$AWS_REGION" ]; then
-    log_info "Deleting KMS alias..."
-    aws kms delete-alias --region "$AWS_REGION" --alias-name "alias/${KEY_ALIAS}" 2>/dev/null || true
-fi
-
-if [ -n "$KEY_ID" ] && [ -n "$AWS_REGION" ]; then
-    log_info "Scheduling KMS key deletion..."
-    aws kms schedule-key-deletion --region "$AWS_REGION" --key-id "$KEY_ID" --pending-window-in-days 7 2>/dev/null || true
-fi
-
-# Delete IAM
-if [ -n "$ROLE_NAME" ]; then
-    log_info "Deleting IAM resources..."
-    aws iam remove-role-from-instance-profile --instance-profile-name EnclaveInstanceProfile --role-name "$ROLE_NAME" 2>/dev/null || true
-    aws iam delete-instance-profile --instance-profile-name EnclaveInstanceProfile 2>/dev/null || true
-    aws iam delete-role-policy --role-name "$ROLE_NAME" --policy-name KMSDecryptPolicy 2>/dev/null || true
-    aws iam delete-role --role-name "$ROLE_NAME" 2>/dev/null || true
-fi
-
-# Stop Temporal
-if [ -n "$TEMPORAL_DIR" ] && [ -d "$TEMPORAL_DIR" ]; then
-    log_info "Stopping Temporal..."
-    cd "$TEMPORAL_DIR"
-    docker compose down -v 2>/dev/null || true
-    cd ..
-    rm -rf "$TEMPORAL_DIR"
-fi
-
-# Clean local files
-rm -f encrypted-tsk.b64 encrypted-tsk.bin
-rm -rf ./config ./build
-
-# Reset state
+# 6. Reset local state
+log_info "Resetting local state..."
 state_reset
 
-log_info "Cleanup complete!"
+# 7. Clean up local files
+rm -f encrypted-tsk.b64 2>/dev/null || true
+rm -rf temporal-docker 2>/dev/null || true
+rm -rf config 2>/dev/null || true
+
+echo ""
+echo "========================================"
+echo "  Cleanup Complete!"
+echo "========================================"
+echo ""
+echo "All AWS resources have been deleted."
+echo "Run './scripts/setup.sh' to start fresh."
+echo ""
