@@ -2,8 +2,11 @@
 # Built from AWS's official aws-nitro-enclaves-sdk-c v0.4.3# Helper image to extract kmstool and libnsm using official AWS packages
 # Helper image to build kmstool from source
 FROM amazonlinux:2 AS kmstool-base
-RUN amazon-linux-extras install aws-nitro-enclaves-cli && \
-    yum install -y aws-nitro-enclaves-cli-devel git cmake3 gcc make json-c-devel && \
+RUN yum install -y yum-utils && \
+    amazon-linux-extras install aws-nitro-enclaves-cli && \
+    yumdownloader aws-nitro-enclaves-cli aws-nitro-enclaves-cli-devel && \
+    rpm -ivh --noscripts aws-nitro-enclaves-cli*.rpm && \
+    yum install -y git cmake3 gcc make json-c-devel && \
     yum clean all
 
 WORKDIR /tmp/sdk
