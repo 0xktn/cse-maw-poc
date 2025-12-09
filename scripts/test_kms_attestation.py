@@ -54,7 +54,6 @@ def test_kms_attestation():
         'region': 'ap-southeast-1'
     }
     sock.sendall(json.dumps(config_msg).encode())
-    sock.sendall(json.dumps(config_msg).encode())
     
     # Wait for response
     response = sock.recv(4096)
