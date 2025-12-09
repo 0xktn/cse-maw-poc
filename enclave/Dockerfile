@@ -8,8 +8,10 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy kmstool binary and dependencies from base
-COPY --from=kmstool-base /usr/bin/kmstool_enclave /usr/bin/kmstool_enclave_cli
-COPY --from=kmstool-base /usr/lib64/libnsm.so /usr/lib64/
+COPY --from=builder /usr/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
+COPY --from=builder /usr/lib64/libnsm.so /usr/lib/libnsm.so
+
+ENV LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
 COPY --from=kmstool-base /etc/pki/tls/certs /etc/pki/tls/certs
 
 # Install runtime dependencies (if any)

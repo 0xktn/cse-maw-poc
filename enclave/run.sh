@@ -16,6 +16,15 @@ touch /tmp/enclave.log
 ) &
 
 # Run Python app with standard logging
+echo "[ENCLAVE] Verifying KMSTool..." > /dev/console
+/usr/bin/kmstool_enclave_cli --help > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "[ENCLAVE] KMSTool FAILED to execute!" > /dev/console
+    echo "[ENCLAVE] KMSTool FAILED to execute!" > /tmp/enclave.log
+else
+    echo "[ENCLAVE] KMSTool looks healthy." > /dev/console
+fi
+
 echo "[ENCLAVE] Starting Python app..." > /dev/console
 echo "[ENCLAVE] Starting Python app..." > /tmp/enclave.log
 
