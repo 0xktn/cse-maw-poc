@@ -15,8 +15,14 @@ logger = logging.getLogger(__name__)
 
 def get_kms_config():
     """Get KMS configuration from local files and AWS credentials from IMDS"""
-    # Read from project root
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Read from project root - handle both running from host/ and project root
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.basename(current_dir) == 'host':
+        project_root = os.path.dirname(current_dir)
+    else:
+        project_root = current_dir
+    
+    logger.info(f"Project root: {project_root}")
     
     # Get KMS key ID from state or environment
     kms_key_id = os.environ.get('KMS_KEY_ID', '')
@@ -26,6 +32,7 @@ def get_kms_config():
     try:
         with open(tsk_path, 'r') as f:
             encrypted_tsk = f.read().strip()
+        logger.info(f"Loaded encrypted TSK from {tsk_path}")
     except FileNotFoundError:
         logger.error(f"encrypted-tsk.b64 not found at {tsk_path}")
         encrypted_tsk = ''
@@ -36,15 +43,17 @@ def get_kms_config():
         # Get IAM role name
         role_response = requests.get(
             'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
-            timeout=2
+            timeout=5
         )
+        role_response.raise_for_status()
         role_name = role_response.text.strip()
         
         # Get credentials
         creds_response = requests.get(
             f'http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}',
-            timeout=2
+            timeout=5
         )
+        creds_response.raise_for_status()
         creds = creds_response.json()
         
         aws_access_key_id = creds['AccessKeyId']
