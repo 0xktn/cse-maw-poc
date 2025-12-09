@@ -28,9 +28,14 @@ fi
 log_info "Starting enclave on EC2..."
 
 # Run enclave with correct path
+# First start vsock-proxy for KMS access, then run enclave
 COMMANDS="[
     \"cd /home/ec2-user/confidential-multi-agent-workflow\",
     \"export NITRO_CLI_ARTIFACTS=/home/ec2-user/confidential-multi-agent-workflow/build\",
+    \"pkill vsock-proxy || true\",
+    \"nohup vsock-proxy 8000 kms.ap-southeast-1.amazonaws.com 443 > /tmp/vsock-proxy.log 2>&1 &\",
+    \"sleep 2\",
+    \"nitro-cli terminate-enclave --all || true\",
     \"nitro-cli run-enclave --cpu-count 2 --memory 2048 --eif-path /home/ec2-user/confidential-multi-agent-workflow/build/enclave.eif --enclave-cid 16 --debug-mode 2>&1 || echo ENCLAVE_FAILED\",
     \"sleep 3\",
     \"nitro-cli describe-enclaves\"

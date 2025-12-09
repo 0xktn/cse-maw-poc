@@ -47,25 +47,29 @@ class KMSAttestationClient:
 
         if boto3:
             try:
-                self.kms = boto3.client('kms', region_name='ap-southeast-1')
+                from botocore.config import Config
+                # Use vsock-proxy running on host (CID 3 is parent)
+                # The proxy listens on localhost:8000 from enclave perspective
+                proxy_config = Config(
+                    proxies={'https': 'http://127.0.0.1:8000'}
+                )
+                self.kms = boto3.client('kms', region_name='ap-southeast-1', config=proxy_config)
+                print("[ENCLAVE] KMS client configured with vsock-proxy", flush=True)
             except Exception as e:
                  print(f"[WARN] Failed to create KMS client: {e}", flush=True)
 
     def decrypt(self, encrypted_data_b64):
-        # Stub logic to allow flow validation even if NSM/KMS fails
         if not self.kms:
-            print("[WARN] KMS not available, using dummy key for verification", flush=True)
-            return b'0'*32
+            raise RuntimeError("KMS client not available - vsock-proxy may not be running")
             
         try:
             ciphertext_blob = base64.b64decode(encrypted_data_b64)
-            # In real environment, this needs vsock proxy. 
-            # We catch the timeout/failure and fallback to dummy for POC stability.
             response = self.kms.decrypt(CiphertextBlob=ciphertext_blob)
+            print("[ENCLAVE] KMS Decrypt successful!", flush=True)
             return response['Plaintext']
         except Exception as e:
-            print(f"[ERROR] KMS Decrypt Call Failed: {e}. Falling back to dummy.", flush=True)
-            return b'0'*32
+            print(f"[ERROR] KMS Decrypt Call Failed: {e}", flush=True)
+            raise
 
 class EncryptionService:
     def __init__(self, key: bytes):
