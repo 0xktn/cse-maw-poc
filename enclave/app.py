@@ -89,9 +89,9 @@ def run_server():
                     response = {"status": "ok", "msg": "pong"}
                     
                 elif msg_type == 'configure':
-                    CREDENTIALS['ak'] = req.get('access_key_id')
-                    CREDENTIALS['sk'] = req.get('secret_access_key')
-                    CREDENTIALS['token'] = req.get('session_token')
+                    CREDENTIALS['ak'] = req.get('aws_access_key_id')
+                    CREDENTIALS['sk'] = req.get('aws_secret_access_key')
+                    CREDENTIALS['token'] = req.get('aws_session_token')
                     tsk_b64 = req.get('encrypted_tsk')
                     
                     if tsk_b64:
