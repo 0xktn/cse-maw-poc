@@ -18,38 +18,25 @@ def run_server():
         try:
             conn, addr = s.accept()
             
-            # Diagnostic Report
-            report = ["Enclave Alive"]
-            
-            # Check Imports
             try:
+                conn.sendall(b"STEP1_START\n")
+                
                 import json
-                report.append("Import json: OK")
-            except ImportError as e:
-                report.append(f"Import json: FAIL ({e})")
-
-            try:
+                conn.sendall(b"STEP2_JSON_OK\n")
+                
                 import cryptography
-                report.append("Import cryptography: OK")
-            except ImportError as e:
-                report.append(f"Import cryptography: FAIL ({e})")
+                conn.sendall(b"STEP3_CRYPTO_OK\n")
                 
-            try:
-                import requests 
-                # We expect fail or not installed, but checking standard lib behavior
-            except ImportError:
-                 pass
-            
-            # Check File System
-            try:
+                from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+                conn.sendall(b"STEP4_AESGCM_OK\n")
+                
                 with open("/usr/bin/kmstool_enclave_cli", "rb") as f:
-                    report.append("kmstool binary: FOUND")
-            except Exception as e:
-                report.append(f"kmstool binary: FAIL ({e})")
+                    pass
+                conn.sendall(b"STEP5_KMSTOOL_FOUND\n")
                 
-            # Send Report
-            resp = "\n".join(report)
-            conn.sendall(resp.encode('utf-8'))
+            except Exception as e:
+                conn.sendall(f"ERROR: {e}\n".encode())
+            
             conn.close()
             
         except Exception:
