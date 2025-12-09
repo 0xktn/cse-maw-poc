@@ -10,9 +10,10 @@ WORKDIR /tmp/sdk
 RUN git clone https://github.com/aws/aws-nitro-enclaves-sdk-c.git . && \
     mkdir build && cd build && \
     cmake3 .. -DNITRO_ENCLAVES_QS_LOG_LEVEL=3 && \
-    make
+    make && \
+    find /tmp/sdk -name kmstool_enclave_cli -exec cp {} /usr/bin/kmstool_enclave_cli \;
 
-# Binary is typically at /tmp/sdk/build/kmstool/kmstool_enclave_cli
+# Binary is now at /usr/bin/kmstool_enclave_cli
 # or bin/kmstool_enclave_cli
 # We will verify and find it in COPY stage (using wildcard if needed? No)
 # SDK usually puts it in `build/bin` or `build/kmstool`
@@ -24,7 +25,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Copy kmstool binary and dependencies from base
-COPY --from=kmstool-base /tmp/sdk/build/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
+COPY --from=kmstool-base /usr/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
 COPY --from=kmstool-base /usr/lib64/libnsm.so /usr/lib/libnsm.so
 
 ENV LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
