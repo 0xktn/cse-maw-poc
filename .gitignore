@@ -79,14 +79,6 @@ Thumbs.db
 .tmp/
 *.log
 
-# Environment and secrets
-.env
-.env.local
-.env.*.local
-config/*.env
-!config/*.env.example
-!config/development.env
-
 # AWS
 .aws/
 credentials

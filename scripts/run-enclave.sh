@@ -4,23 +4,18 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 EIF_PATH="$PROJECT_ROOT/build/enclave.eif"
 
-# Load configuration
-if [ -f "$PROJECT_ROOT/.env" ]; then
-  source "$PROJECT_ROOT/.env"
-elif [ -f "$PROJECT_ROOT/config/production.env.example" ]; then
-  echo "Warning: No .env file found. Using example configuration."
-  source "$PROJECT_ROOT/config/production.env.example"
-fi
+# Source state management
+source "$SCRIPT_DIR/lib/state.sh"
 
-# Default configuration (can be overridden by environment)
-CPU_COUNT="${ENCLAVE_CPU_COUNT:-2}"
-MEMORY_MB="${ENCLAVE_MEMORY_MB:-2048}"
-DEBUG_MODE="${ENCLAVE_DEBUG_MODE:-false}"
-PRODUCTION_MODE="${PRODUCTION_MODE:-true}"
+# Load configuration from state
+CPU_COUNT=$(state_get "enclave_cpu_count" 2>/dev/null || echo "2")
+MEMORY_MB=$(state_get "enclave_memory_mb" 2>/dev/null || echo "2048")
+DEBUG_MODE=$(state_get "debug_mode" 2>/dev/null || echo "false")
+# Assuming production mode if not explicitly set to false/debug in state
+PRODUCTION_MODE=$(if [ "$DEBUG_MODE" = "true" ]; then echo "false"; else echo "true"; fi)
 
 if [ ! -f "$EIF_PATH" ]; then
   echo "Error: Enclave image not found at $EIF_PATH"

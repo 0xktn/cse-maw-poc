@@ -87,6 +87,20 @@ done
 # Initialize state
 state_init
 
+# Initialize default configuration if not set
+if ! state_get "enclave_cpu_count" >/dev/null 2>&1; then
+    state_set "enclave_cpu_count" "2"
+fi
+
+if ! state_get "enclave_memory_mb" >/dev/null 2>&1; then
+    state_set "enclave_memory_mb" "2048"
+fi
+
+if ! state_get "debug_mode" >/dev/null 2>&1; then
+    state_set "debug_mode" "false"
+fi
+
+
 # Handle --clean (delete all AWS resources)
 if [[ "$CLEAN_ALL" == "true" ]]; then
     "$SCRIPT_DIR/cleanup.sh"
