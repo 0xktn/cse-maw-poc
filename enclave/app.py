@@ -34,42 +34,40 @@ except ImportError as e:
     aws_nsm_interface = None
 
 class KMSAttestationClient:
-    def __init__(self):
-        self._nsm_fd = None
-        self.kms = None
+    """
+    Uses official AWS kmstool_enclave_cli for KMS operations with attestation.
+    The binary is built from aws-nitro-enclaves-sdk-c and handles:
+    - NSM device access for attestation document generation
+    - KMS API calls with attestation
+    """
+    def __init__(self, region: str = 'ap-southeast-1', proxy_port: int = 8000):
+        self.region = region
+        self.proxy_port = proxy_port
+        print(f"[ENCLAVE] KMS Client initialized (region={region}, proxy_port={proxy_port})", flush=True)
+
+    def decrypt(self, encrypted_data_b64: str) -> bytes:
+        """
+        Use official AWS kmstool_enclave_cli for KMS decrypt with attestation.
+        """
+        import subprocess
         
-        if aws_nsm_interface:
-            try:
-                self._nsm_fd = aws_nsm_interface.open_nsm_device()
-                print("[ENCLAVE] NSM Device Opened", flush=True)
-            except Exception as e:
-                print(f"[WARN] Failed to open NSM device: {e}", flush=True)
-
-        if boto3:
-            try:
-                from botocore.config import Config
-                # Use vsock-proxy running on host (CID 3 is parent)
-                # The proxy listens on localhost:8000 from enclave perspective
-                proxy_config = Config(
-                    proxies={'https': 'http://127.0.0.1:8000'}
-                )
-                self.kms = boto3.client('kms', region_name='ap-southeast-1', config=proxy_config)
-                print("[ENCLAVE] KMS client configured with vsock-proxy", flush=True)
-            except Exception as e:
-                 print(f"[WARN] Failed to create KMS client: {e}", flush=True)
-
-    def decrypt(self, encrypted_data_b64):
-        if not self.kms:
-            raise RuntimeError("KMS client not available - vsock-proxy may not be running")
-            
-        try:
-            ciphertext_blob = base64.b64decode(encrypted_data_b64)
-            response = self.kms.decrypt(CiphertextBlob=ciphertext_blob)
-            print("[ENCLAVE] KMS Decrypt successful!", flush=True)
-            return response['Plaintext']
-        except Exception as e:
-            print(f"[ERROR] KMS Decrypt Call Failed: {e}", flush=True)
-            raise
+        cmd = [
+            '/usr/bin/kmstool_enclave_cli', 'decrypt',
+            '--region', self.region,
+            '--proxy-port', str(self.proxy_port),
+            '--ciphertext', encrypted_data_b64
+        ]
+        
+        print(f"[ENCLAVE] Running: {' '.join(cmd)}", flush=True)
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print(f"[ERROR] kmstool stderr: {result.stderr}", flush=True)
+            raise RuntimeError(f"kmstool decrypt failed: {result.stderr}")
+        
+        print("[ENCLAVE] KMS Decrypt successful (via kmstool)!", flush=True)
+        return base64.b64decode(result.stdout.strip())
 
 class EncryptionService:
     def __init__(self, key: bytes):
