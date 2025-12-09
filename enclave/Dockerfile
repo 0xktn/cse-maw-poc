@@ -3,7 +3,7 @@
 # Helper image to build kmstool from source
 FROM amazonlinux:2 AS kmstool-base
 RUN yum install -y yum-utils && \
-    amazon-linux-extras install aws-nitro-enclaves-cli && \
+    amazon-linux-extras enable aws-nitro-enclaves-cli && \
     yumdownloader aws-nitro-enclaves-cli aws-nitro-enclaves-cli-devel && \
     rpm -ivh --noscripts aws-nitro-enclaves-cli*.rpm && \
     yum install -y git cmake3 gcc make json-c-devel && \
