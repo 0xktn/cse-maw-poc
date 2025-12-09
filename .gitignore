@@ -36,14 +36,26 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
 venv/
 ENV/
-*.egg-info/
-.pytest_cache/
-
-# Temporal
-.temporal/
+env/
 
 # IDE
 .vscode/
@@ -51,19 +63,41 @@ ENV/
 *.swp
 *.swo
 *~
-.DS_Store
+# .DS_Store <- Moved to OS section
 
 # OS
+.DS_Store
 Thumbs.db
-.Spotlight-V100
-.Trashes
+# .Spotlight-V100 <- Removed
+# .Trashes <- Removed
 
-# Secrets and keys
+# Project specific
+*.eif
 *.pem
 *.key
-*.crt
-secrets/
-credentials/
+.state/
+.tmp/
+*.log
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+config/*.env
+!config/*.env.example
+!config/development.env
+
+# AWS
+.aws/
+credentials
+
+# Temporal
+temporal-data/
+# .temporal/ <- Replaced by temporal-data/
+# *.key <- Redundant with Project specific
+# *.crt <- Redundant with Project specific
+# secrets/ <- Redundant with Environment and secrets
+# credentials/ <- Redundant with Environment and secrets
 
 # Test coverage
 coverage/

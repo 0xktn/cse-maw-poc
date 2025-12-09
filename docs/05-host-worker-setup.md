@@ -134,7 +134,7 @@ class VsockClient:
             
             # Prepare request
             request = {
-                'mode': mode,
+                'type': 'process',
                 'payload': payload
             }
             data = json.dumps(request).encode('utf-8')
@@ -226,7 +226,7 @@ async def secure_enclave_activity(input: EnclaveInput) -> EnclaveOutput:
     try:
         response = client.send_request(input.mode, input.payload)
         
-        if response.get('status') != 'success':
+        if response.get('status') != 'ok':
             raise RuntimeError(f"Enclave error: {response.get('error')}")
         
         return EnclaveOutput(

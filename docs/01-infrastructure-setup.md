@@ -17,7 +17,7 @@ This doc explains what the automated scripts do. You don't need to run these man
 | `m5.2xlarge` | 8 | 32 GB | Production |
 
 > [!IMPORTANT]
-> Nitro Enclaves require at least 2 vCPUs and 512 MB reserved for the enclave.
+> Nitro Enclaves require at least 2 vCPUs and **2048 MB** reserved for the enclave to support Python `cryptography` + Runtime overhead.
 
 ## What `./scripts/setup-instance.sh` Does (run on EC2)
 

@@ -51,28 +51,26 @@ Create a minimal Docker image for the enclave:
 
 ```dockerfile
 # enclave/Dockerfile
-FROM python:3.11-slim as builder
+# enclave/Dockerfile
+FROM amazonlinux:2023
+
+# Install system dependencies (verified for amazonlinux)
+RUN dnf install -y python3.11 python3.11-pip openssl openssl-devel gcc libffi-devel python3-devel && \
+    dnf clean all
 
 WORKDIR /app
 
-# Install build dependencies
-RUN pip install --no-cache-dir --upgrade pip
+# Install dependencies (requires gcc/openssl-devel for cryptography)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt --target /app/deps
-
-# Production stage
-FROM python:3.11-slim
+RUN pip3.11 install --no-cache-dir -r requirements.txt
 
 WORKDIR /app
 
-# Copy dependencies and application
-COPY --from=builder /app/deps /app/deps
+# Copy application
 COPY . .
 
-ENV PYTHONPATH=/app/deps
-
-# Enclave entry point
-CMD ["python", "app.py"]
+# Run Python app (explicit python3.11)
+CMD ["python3.11", "/app/app.py"]
 ```
 
 ## Step 2: Install Dependencies
@@ -381,7 +379,7 @@ nitro-cli run-enclave \
 # For debugging (allows console output)
 nitro-cli run-enclave \
   --cpu-count 2 \
-  --memory 1024 \
+  --memory 2048 \
   --eif-path enclave.eif \
   --debug-mode
 ```
