@@ -117,10 +117,20 @@ class EnclaveApp:
         try:
             data = conn.recv(8192)
             if not data: return
-            msg = json.loads(data.decode())
+            
+            try:
+                msg = json.loads(data.decode())
+            except Exception as e:
+                print(f"[ERROR] JSON Decode: {e}")
+                conn.sendall(json.dumps({'status': 'error', 'msg': f"JSON Error: {e}"}).encode())
+                return
+
             mtype = msg.get('type')
             
-            if mtype == 'configure':
+            if mtype == 'ping':
+                conn.sendall(json.dumps({'status': 'ok', 'msg': 'pong'}).encode())
+                
+            elif mtype == 'configure':
                 print("[ENCLAVE] Configuring...")
                 self.kms.set_credentials(
                     msg.get('aws_access_key_id'), 
@@ -148,6 +158,10 @@ class EnclaveApp:
                         logs = f.read()[-4096:]
                 except: logs = "No logs"
                 conn.sendall(json.dumps({'status': 'ok', 'logs': logs}).encode())
+                
+            else:
+                print(f"[ERROR] Unknown type: {mtype}")
+                conn.sendall(json.dumps({'status': 'error', 'msg': f"Unknown type: {mtype}"}).encode())
 
         except Exception as e:
             print(f"[ERROR] Handle Exception: {e}")

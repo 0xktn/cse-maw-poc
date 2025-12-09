@@ -25,6 +25,26 @@ def test_kms_attestation():
     sock.connect((16, 5000))
     print("Connected!")
     
+    # 1. Ping Test
+    print("Sending Ping...")
+    sock.sendall(json.dumps({"type": "ping"}).encode())
+    resp = sock.recv(1024)
+    print(f"Ping Response: {resp}")
+    try:
+        if json.loads(resp).get('status') != 'ok':
+            print("Ping Failed!")
+            return False
+    except:
+        print("Ping Response Invalid!")
+        return False
+        
+    sock.close()
+    
+    # Reconnect for Configure
+    sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+    sock.settimeout(60) # Apply timeout to the new socket as well
+    sock.connect((16, 5000))
+
     # Send configuration with encrypted TSK
     print("Sending Configuration with Encrypted TSK...")
     config_msg = {
