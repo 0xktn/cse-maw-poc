@@ -3,6 +3,7 @@ import sys
 import os
 import json
 import subprocess
+import base64
 
 # Force line buffering
 sys.stdout.reconfigure(line_buffering=True)
