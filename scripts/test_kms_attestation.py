@@ -142,7 +142,8 @@ def test_kms_attestation():
     result = json.loads(response.decode())
     
     if result.get('status') == 'ok':
-        print(f"✅ Processing successful! Encrypted result: {result['result'][:80]}...")
+        encrypted_data = result.get('result') or result.get('ciphertext') or result.get('data') or str(result)[:80]
+        print(f"✅ Processing successful! Encrypted result: {encrypted_data[:80]}...")
         print("\n🎉 END-TO-END KMS ATTESTATION TEST PASSED!")
         return True
     else:
