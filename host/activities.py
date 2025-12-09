@@ -37,20 +37,31 @@ def get_kms_config():
         logger.error(f"encrypted-tsk.b64 not found at {tsk_path}")
         encrypted_tsk = ''
     
-    # Fetch AWS credentials from IMDS
+    # Fetch AWS credentials from IMDS (v2)
     import requests
     try:
-        # Get IAM role name
+        # Get IMDSv2 session token
+        token_response = requests.put(
+            'http://169.254.169.254/latest/api/token',
+            headers={'X-aws-ec2-metadata-token-ttl-seconds': '21600'},
+            timeout=5
+        )
+        token_response.raise_for_status()
+        token = token_response.text
+        
+        # Get IAM role name (with token)
         role_response = requests.get(
             'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+            headers={'X-aws-ec2-metadata-token': token},
             timeout=5
         )
         role_response.raise_for_status()
         role_name = role_response.text.strip()
         
-        # Get credentials
+        # Get credentials (with token)
         creds_response = requests.get(
             f'http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}',
+            headers={'X-aws-ec2-metadata-token': token},
             timeout=5
         )
         creds_response.raise_for_status()
