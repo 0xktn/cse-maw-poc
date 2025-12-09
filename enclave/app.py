@@ -107,73 +107,11 @@ def run_server():
                 
                 print(f"[ENCLAVE] Recv {len(data)} bytes", flush=True)
 
-                # BYTES DISPATCH
-                # We assume client sends JSON, so keys are quoted.
-                
-                if b'"type": "ping"' in data or b'"type":"ping"' in data:
+                if b'ping' in data:
+                    print("[ENCLAVE] Ping detected", flush=True)
                     conn.sendall(b'{"status": "ok", "msg": "pong"}')
-                
-                elif b'"type": "configure"' in data or b'"type":"configure"' in data:
-                    print("[ENCLAVE] Handling Configure", flush=True)
-                    ak = extract_val_bytes(data, b"access_key_id")
-                    sk = extract_val_bytes(data, b"secret_access_key")
-                    token = extract_val_bytes(data, b"session_token")
-                    enc_key = extract_val_bytes(data, b"encrypted_key")
-                    
-                    if ak and sk and token and enc_key:
-                        CREDENTIALS['ak'] = ak
-                        CREDENTIALS['sk'] = sk
-                        CREDENTIALS['token'] = token
-                        
-                        tsk = kms_decrypt_bytes(enc_key)
-                        if tsk and len(tsk) == 32:
-                            global ENCRYPTION_KEY
-                            ENCRYPTION_KEY = tsk
-                            print("[ENCLAVE] Configured", flush=True)
-                            conn.sendall(b'{"status": "ok", "msg": "configured"}')
-                        else:
-                            print("[ERROR] TSK Decrypt Fail", flush=True)
-                            conn.sendall(b'{"status": "error", "msg": "kms_fail"}')
-                    else:
-                        conn.sendall(b'{"status": "error", "msg": "missing_fields"}')
-
-                elif b'"type": "process"' in data or b'"type":"process"' in data:
-                    print("[ENCLAVE] Handling Process", flush=True)
-                    if not ENCRYPTION_KEY:
-                         conn.sendall(b'{"status": "error", "msg": "not_configured"}')
-                    else:
-                        enc_data_b64 = extract_val_bytes(data, b"encrypted_data")
-                        if enc_data_b64:
-                            try:
-                                blob = base64.b64decode(enc_data_b64)
-                                nonce = blob[:12]
-                                ciphertext = blob[12:]
-                                aesgcm = AESGCM(ENCRYPTION_KEY)
-                                plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-                                
-                                # Process Logic: Echo (Bytes)
-                                # "Processed: " + plaintext
-                                resp_text = b"Processed: " + plaintext 
-                                
-                                # Encrypt
-                                resp_nonce = os.urandom(12)
-                                resp_cipher = aesgcm.encrypt(resp_nonce, resp_text, None)
-                                resp_blob = base64.b64encode(resp_nonce + resp_cipher) # bytes result
-                                
-                                # Manual JSON Bytes Construct
-                                # {"status": "ok", "encrypted_data": "..."}
-                                resp_json = b'{"status": "ok", "encrypted_data": "' + resp_blob + b'"}'
-                                conn.sendall(resp_json)
-                                
-                            except Exception as e_proc:
-                                print(f"[ERROR] Process Fail: {e_proc}", flush=True)
-                                conn.sendall(b'{"status": "error", "msg": "process_fail"}')
-                        else:
-                            conn.sendall(b'{"status": "error", "msg": "missing_data"}')
-
                 else:
-                    print("[ENCLAVE] Unknown Type", flush=True)
-                    conn.sendall(b'{"status": "error", "msg": "unknown"}')
+                    conn.sendall(data) # ECHO BACK
 
             except Exception as e_req:
                 print(f"[ERROR] Request failed: {e_req}", flush=True)
