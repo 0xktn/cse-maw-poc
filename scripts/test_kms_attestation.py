@@ -45,13 +45,39 @@ def test_kms_attestation():
     sock.settimeout(60) # Apply timeout to the new socket as well
     sock.connect((16, 5000))
 
+    # Fetch credentials from IMDS
+    print("Fetching credentials from IMDS...")
+    import urllib.request
+    try:
+        # Get Role Name
+        req = urllib.request.Request("http://169.254.169.254/latest/meta-data/iam/security-credentials/")
+        role_name = urllib.request.urlopen(req).read().decode()
+        
+        # Get Creds
+        req = urllib.request.Request(f"http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}")
+        creds = json.loads(urllib.request.urlopen(req).read().decode())
+        
+        print(f"Got credentials for role: {role_name}")
+        
+    except Exception as e:
+        print(f"Failed to fetch credentials from IMDS: {e}")
+        # Fallback to env vars if available (e.g. for local debug)
+        creds = {
+            "AccessKeyId": os.environ.get("AWS_ACCESS_KEY_ID"),
+            "SecretAccessKey": os.environ.get("AWS_SECRET_ACCESS_KEY"),
+            "Token": os.environ.get("AWS_SESSION_TOKEN")
+        }
+
     # Send configuration with encrypted TSK
     print("Sending Configuration with Encrypted TSK...")
     config_msg = {
         'type': 'configure',
         'kms_key_id': os.environ.get('KMS_KEY_ID', '901ee892-db48-4a51-903a-25d46a721c8e'),
         'encrypted_tsk': encrypted_tsk,
-        'region': 'ap-southeast-1'
+        'region': 'ap-southeast-1',
+        'access_key_id': creds.get('AccessKeyId'),
+        'secret_access_key': creds.get('SecretAccessKey'),
+        'session_token': creds.get('Token')
     }
     sock.sendall(json.dumps(config_msg).encode())
     
