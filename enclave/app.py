@@ -41,15 +41,17 @@ def kms_decrypt(ciphertext_b64):
         marker = "PLAINTEXT:"
         if marker in output:
             payload = output.split(marker, 1)[1].strip()
-            return base64.b64decode(payload)
-        return base64.b64decode(output)
+            return (base64.b64decode(payload), None)
+        return (base64.b64decode(output), None)
 
     except subprocess.CalledProcessError as e:
-        print(f"[ERROR] KMS Tool Failed: {e.stderr}", flush=True)
-        return None
+        err_msg = e.stderr.strip()
+        print(f"[ERROR] KMS Tool Failed: {err_msg}", flush=True)
+        return (None, err_msg)
     except Exception as e:
-        print(f"[ERROR] KMS Decrypt Exception: {e}", flush=True)
-        return None
+        err_msg = str(e)
+        print(f"[ERROR] KMS Decrypt Exception: {err_msg}", flush=True)
+        return (None, err_msg)
 
 def run_server():
     global ENCRYPTION_KEY
@@ -94,13 +96,13 @@ def run_server():
                     
                     if tsk_b64:
                         print("[ENCLAVE] Decrypting TSK...", flush=True)
-                        tsk_bytes = kms_decrypt(tsk_b64)
+                        tsk_bytes, err_details = kms_decrypt(tsk_b64)
                         if tsk_bytes:
                             ENCRYPTION_KEY = tsk_bytes
                             print(f"[ENCLAVE] TSK Set! (len={len(ENCRYPTION_KEY)})", flush=True)
                             response = {"status": "ok", "msg": "configured"}
                         else:
-                            response = {"status": "error", "msg": "kms_decrypt_failed"}
+                            response = {"status": "error", "msg": "kms_decrypt_failed", "details": err_details}
                     else:
                          response = {"status": "error", "msg": "missing_tsk"}
 
