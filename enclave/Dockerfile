@@ -1,19 +1,17 @@
-# Use AWS's official pre-built kmstool container as base
-# This container already has kmstool_enclave_cli and all dependencies
-FROM public.ecr.aws/aws-nitro-enclaves/aws-nitro-enclaves-sdk-c:latest
+FROM amazonlinux:2023
 
-# Install Python 3.11 and dependencies
-RUN yum install -y python3.11 python3.11-pip && yum clean all
-
-# Install Python dependencies
-RUN pip3.11 install --no-cache-dir cryptography boto3
-
-# Copy our application
 WORKDIR /app
+
+# Install Python 3.11
+RUN dnf install -y python3.11 python3.11-pip openssl openssl-devel gcc libffi-devel && dnf clean all
+
+# Install dependencies
+RUN pip3.11 install cryptography boto3 aws-nsm-interface
+
+# Copy application
 COPY app.py .
 COPY run.sh .
 RUN chmod +x run.sh
 
-# kmstool_enclave_cli is already available at /usr/bin/kmstool_enclave from base image
-
+# Entrypoint
 CMD ["/app/run.sh"]
