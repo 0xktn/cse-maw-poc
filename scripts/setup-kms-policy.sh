@@ -18,10 +18,11 @@ PCR0="$1"
 state_set "pcr0" "$PCR0" --encrypt
 
 # Get values from state
-AWS_REGION=$(state_get "aws_region")
-AWS_ACCOUNT_ID=$(state_get "aws_account_id")
-KEY_ID=$(state_get "kms_key_id")
-ROLE_NAME=$(state_get "iam_role_name")
+# Get values from state
+AWS_REGION=$(state_get "aws_region" || echo "ap-southeast-1")
+AWS_ACCOUNT_ID=$(state_get "aws_account_id" || aws sts get-caller-identity --query Account --output text)
+KEY_ID=$(state_get "kms_key_id" || echo "901ee892-db48-4a51-903a-25d46a721c8e")
+ROLE_NAME=$(state_get "iam_role_name" || echo "enclave-role")
 
 echo "Applying attestation policy..."
 echo "PCR0: $PCR0"
