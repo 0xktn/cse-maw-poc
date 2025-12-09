@@ -86,8 +86,9 @@ WORKDIR /app
 COPY --from=kmstool-base /usr/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
 COPY --from=kmstool-base /usr/lib64/libnsm.so /usr/lib/libnsm.so
 
-ENV LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
-COPY --from=kmstool-base /etc/pki/tls/certs /etc/pki/tls/certs
+# Symlink Debian CA certs to the path expected by kmstool (built on AmazonLinux)
+RUN mkdir -p /etc/pki/tls/certs && \
+    ln -s /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
 
 # Install runtime dependencies (if any)
 RUN apt-get update && apt-get install -y --no-install-recommends \
