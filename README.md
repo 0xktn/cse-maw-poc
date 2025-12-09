@@ -80,7 +80,7 @@ The workflow executes a sequential transfer of state between Agent A and Agent B
 
 - **Infrastructure**: AWS EC2 Instance (Parent) with Nitro Enclave support (verified on `c6a.xlarge`, `m5.xlarge`).
 - **Operating System**: Amazon Linux 2023 (Verified). Ubuntu/AL2 are NOT supported.
-- **Enclave Resources**: Minimum 2048 MB RAM and 2 vCPUs verified for Python Encryption stack.
+- **Enclave Resources**: Minimum 2048 MB RAM and 2 vCPUs.
 - **Orchestration Server**: Access to a Temporal Server (Temporal Cloud or Self-Hosted on Host).
 - **Language Runtime**: Python 3.9+ (Host), Python 3.11 (Enclave Base).
 
@@ -176,7 +176,7 @@ vsock-proxy 8000 kms.ap-southeast-1.amazonaws.com 443 &
 nitro-cli describe-enclaves
 
 # Run the test
-python3 scripts/test_kms_attestation.py
+python3 tests/test_kms_attestation.py
 ```
 
 **Expected Output**:
@@ -207,7 +207,7 @@ Verify that KMS Decrypt calls include attestation documents:
 
 ```bash
 # On the EC2 instance
-python3 scripts/verify_cloudtrail.py
+python3 tests/verify_cloudtrail.py
 ```
 
 **Note**: CloudTrail events have a 5-15 minute delay. The script queries the last hour of KMS Decrypt events and checks for attestation documents.
@@ -257,7 +257,7 @@ python3 scripts/verify_cloudtrail.py
   
   # 3. Restart enclave
   nitro-cli terminate-enclave --all
-  nitro-cli run-enclave --eif-path build/enclave.eif --enclave-cid 16 --cpu-count 2 --memory 1024
+  nitro-cli run-enclave --eif-path build/enclave.eif --enclave-cid 16 --cpu-count 2 --memory 2048
   ```
 
 **Issue**: `AWS_IO_SOCKET_NOT_CONNECTED` or `connection failure`
@@ -287,7 +287,7 @@ python3 scripts/verify_cloudtrail.py
   nitro-cli describe-enclaves
   
   # If not running, start it
-  nitro-cli run-enclave --eif-path build/enclave.eif --enclave-cid 16 --cpu-count 2 --memory 1024 --debug-mode
+  nitro-cli run-enclave --eif-path build/enclave.eif --enclave-cid 16 --cpu-count 2 --memory 2048 --debug-mode
   
   # Check enclave console logs
   nitro-cli console --enclave-id <ENCLAVE_ID>
@@ -343,7 +343,7 @@ python3 scripts/verify_cloudtrail.py
 For detailed debugging, run the enclave in debug mode:
 
 ```bash
-nitro-cli run-enclave --eif-path build/enclave.eif --enclave-cid 16 --cpu-count 2 --memory 1024 --debug-mode
+nitro-cli run-enclave --eif-path build/enclave.eif --enclave-cid 16 --cpu-count 2 --memory 2048 --debug-mode
 
 # View console output
 nitro-cli console --enclave-id <ENCLAVE_ID>

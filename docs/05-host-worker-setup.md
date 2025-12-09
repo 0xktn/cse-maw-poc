@@ -86,16 +86,8 @@ ENCLAVE_CID = int(os.getenv("ENCLAVE_CID", "16"))  # Enclave CID from nitro-cli
 ENCLAVE_PORT = int(os.getenv("ENCLAVE_PORT", "5000"))
 ```
 
-Create a `.env` file:
+Configuration is managed via environment variables passed by the startup scripts (`scripts/run-worker-ssm.sh`). You do not need to create a `.env` file manually.
 
-```bash
-# host/.env
-TEMPORAL_HOST=localhost:7233
-TEMPORAL_NAMESPACE=confidential-workflow-poc
-TEMPORAL_TASK_QUEUE=confidential-workflow-queue
-ENCLAVE_CID=16
-ENCLAVE_PORT=5000
-```
 
 ## Step 3: Implement vsock Client
 
