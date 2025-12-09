@@ -33,6 +33,22 @@ except ImportError as e:
     print(f"[ERROR] AWS NSM Interface import failed: {e}", flush=True)
     aws_nsm_interface = None
 
+import io
+
+class EnclaveLogger:
+    def __init__(self):
+        self.logs = io.StringIO()
+    
+    def log(self, message):
+        line = f"[ENCLAVE] {message}"
+        print(line, flush=True)
+        self.logs.write(line + "\n")
+        
+    def get_logs(self):
+        return self.logs.getvalue()
+
+logger = EnclaveLogger()
+
 class KMSAttestationClient:
     """
     KMS client using official AWS kmstool_enclave_cli for attestation.
@@ -148,22 +164,6 @@ class EncryptionService:
         ciphertext = data[12:]
         plaintext = self.aesgcm.decrypt(nonce, ciphertext, None)
         return plaintext.decode('utf-8')
-
-import io
-
-class EnclaveLogger:
-    def __init__(self):
-        self.logs = io.StringIO()
-    
-    def log(self, message):
-        line = f"[ENCLAVE] {message}"
-        print(line, flush=True)
-        self.logs.write(line + "\n")
-        
-    def get_logs(self):
-        return self.logs.getvalue()
-
-logger = EnclaveLogger()
 
 # ... (KMSAttestationClient and EncryptionService use logger.log instead of print) ...
 
