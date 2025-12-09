@@ -1,6 +1,7 @@
 #!/bin/sh
 # Force all output to the enclave console
-exec >/tmp/enclave.log 2>&1
+exec python3.11 -u /app/app.py >/tmp/enclave.log 2>&1
+cat /tmp/enclave.log > /dev/console
 
 echo "[ENCLAVE] Starting..."
 echo "[ENCLAVE] Environment: $(uname -a)"
