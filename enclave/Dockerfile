@@ -3,7 +3,7 @@
 FROM ghcr.io/0xktn/kmstool:v0.4.3 AS kmstool-base
 
 # Final stage: Add Python and our application
-FROM amazonlinux:2023
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -12,14 +12,16 @@ COPY --from=kmstool-base /usr/bin/kmstool_enclave /usr/bin/kmstool_enclave_cli
 COPY --from=kmstool-base /usr/lib64/libnsm.so /usr/lib64/
 COPY --from=kmstool-base /etc/pki/tls/certs /etc/pki/tls/certs
 
-# Install Python 3.11 and runtime dependencies
-RUN dnf install -y python3.11 python3.11-pip glibc-all-langpacks && dnf clean all
+# Install runtime dependencies (if any)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-RUN pip3.11 install --no-cache-dir cryptography boto3
+RUN pip install --no-cache-dir cryptography boto3
 
 # Copy our application
-COPY app_isolated.py app.py
+COPY app.py .
 COPY run.sh .
 RUN chmod +x run.sh /usr/bin/kmstool_enclave_cli
 

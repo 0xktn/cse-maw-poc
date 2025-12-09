@@ -99,19 +99,33 @@ def run_server():
             conn, addr = s.accept()
             print(f"[ENCLAVE] Connect from {addr}", flush=True)
             
-                # REMOTE SHELL EXECUTOR
-                # Expects bytes: "command arg1 arg2"
-                cmd_line = data.strip().decode('utf-8', errors='ignore')
-                print(f"[ENCLAVE] Executing: {cmd_line}", flush=True)
+            # Read data from connection
+            data = conn.recv(4096) # Adjust buffer size as needed
+            if not data:
+                continue # No data received, close connection and wait for next
+            
+            # STANDARD JSON ECHO (Debian Verification)
+            # We expect this to work now!
+            try:
+                msg_str = data.decode('utf-8')
+                print(f"[ENCLAVE] Received: {msg_str[:50]}...", flush=True)
                 
-                try:
-                    # Unsafe but necessary for debugging
-                    res = subprocess.run(cmd_line, shell=True, capture_output=True)
-                    output = res.stdout + res.stderr
-                    conn.sendall(output)
-                except Exception as e:
-                    conn.sendall(f"Exec fail: {e}".encode())
-
+                req = json.loads(msg_str)
+                print(f"[ENCLAVE] JSON Parsed OK: type={req.get('type')}", flush=True)
+                
+                resp = json.dumps({
+                    "status": "ok",
+                    "msg": "Debian Rocks",
+                    "echo": req
+                })
+                conn.sendall(resp.encode('utf-8'))
+                
+            except json.JSONDecodeError:
+                print("[ENCLAVE] JSON Decode Error", flush=True)
+                conn.sendall(b'{"status": "error", "msg": "invalid_json"}')
+            except Exception as e:
+                print(f"[ENCLAVE] Logic Error: {e}", flush=True)
+                conn.sendall(b'{"status": "error", "msg": "logic_fail"}')
 
             except Exception as e_req:
                 print(f"[ERROR] Request failed: {e_req}", flush=True)
