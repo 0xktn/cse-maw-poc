@@ -41,7 +41,17 @@ class KMSAttestationClient:
     def __init__(self, region='ap-southeast-1', proxy_port=8000):
         self.region = region
         self.proxy_port = proxy_port
+        self.aws_access_key_id = None
+        self.aws_secret_access_key = None
+        self.aws_session_token = None
         print(f"[ENCLAVE] KMS Client initialized (region={region}, proxy_port={proxy_port})", flush=True)
+    
+    def set_credentials(self, access_key_id, secret_access_key, session_token):
+        """Set AWS credentials for kmstool calls."""
+        self.aws_access_key_id = access_key_id
+        self.aws_secret_access_key = secret_access_key
+        self.aws_session_token = session_token
+        print("[ENCLAVE] AWS credentials configured", flush=True)
 
     def decrypt(self, encrypted_data_b64):
         """
@@ -56,14 +66,27 @@ class KMSAttestationClient:
         try:
             print("[ENCLAVE] Calling kmstool_enclave_cli for KMS decrypt...", flush=True)
             
+            # Build command with AWS credentials
+            cmd = [
+                '/usr/bin/kmstool_enclave_cli',
+                'decrypt',
+                '--region', self.region,
+                '--proxy-port', str(self.proxy_port),
+                '--ciphertext', encrypted_data_b64
+            ]
+            
+            # Add AWS credentials if available
+            if self.aws_access_key_id:
+                cmd.extend(['--aws-access-key-id', self.aws_access_key_id])
+            if self.aws_secret_access_key:
+                cmd.extend(['--aws-secret-access-key', self.aws_secret_access_key])
+            if self.aws_session_token:
+                cmd.extend(['--aws-session-token', self.aws_session_token])
+            
+            print(f"[ENCLAVE] Running kmstool with credentials: {bool(self.aws_access_key_id)}", flush=True)
+            
             result = subprocess.run(
-                [
-                    '/usr/bin/kmstool_enclave_cli',
-                    'decrypt',
-                    '--region', self.region,
-                    '--proxy-port', str(self.proxy_port),
-                    '--ciphertext', encrypted_data_b64
-                ],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=30
@@ -71,10 +94,18 @@ class KMSAttestationClient:
             
             if result.returncode != 0:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown error"
+                print(f"[ENCLAVE] kmstool stderr: {error_msg}", flush=True)
                 raise RuntimeError(f"kmstool_enclave_cli failed (exit {result.returncode}): {error_msg}")
             
-            # kmstool outputs base64-encoded plaintext
-            plaintext_b64 = result.stdout.strip()
+            # kmstool outputs "PLAINTEXT: <base64>" format
+            output = result.stdout.strip()
+            print(f"[ENCLAVE] kmstool output: {output[:100]}...", flush=True)
+            
+            if output.startswith("PLAINTEXT:"):
+                plaintext_b64 = output.split(":", 1)[1].strip()
+            else:
+                plaintext_b64 = output
+            
             plaintext = base64.b64decode(plaintext_b64)
             
             print(f"[ENCLAVE] KMS Decrypt successful via kmstool! Plaintext length: {len(plaintext)} bytes", flush=True)
@@ -84,6 +115,8 @@ class KMSAttestationClient:
             raise RuntimeError("kmstool_enclave_cli timed out after 30s")
         except Exception as e:
             print(f"[ERROR] KMS Decrypt via kmstool failed: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             raise
 
 class EncryptionService:
@@ -132,6 +165,20 @@ class EnclaveApp:
                 print("[ENCLAVE] Handling Configure", flush=True)
                 encrypted_tsk = msg.get('encrypted_tsk', '')
                 print(f"[ENCLAVE] Encrypted TSK length: {len(encrypted_tsk)}", flush=True)
+                
+                # Set AWS credentials if provided
+                aws_access_key_id = msg.get('aws_access_key_id')
+                aws_secret_access_key = msg.get('aws_secret_access_key')
+                aws_session_token = msg.get('aws_session_token')
+                
+                if aws_access_key_id and aws_secret_access_key:
+                    self.kms_client.set_credentials(
+                        aws_access_key_id,
+                        aws_secret_access_key,
+                        aws_session_token
+                    )
+                else:
+                    print("[ENCLAVE] WARNING: No AWS credentials provided", flush=True)
                 
                 # Decrypt TSK via kmstool
                 tsk = self.kms_client.decrypt(encrypted_tsk)

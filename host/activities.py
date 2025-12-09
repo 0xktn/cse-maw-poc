@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_kms_config():
-    """Get KMS configuration from local files"""
+    """Get KMS configuration from local files and AWS credentials from IMDS"""
     # Read from project root
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
@@ -30,10 +30,40 @@ def get_kms_config():
         logger.error(f"encrypted-tsk.b64 not found at {tsk_path}")
         encrypted_tsk = ''
     
+    # Fetch AWS credentials from IMDS
+    import requests
+    try:
+        # Get IAM role name
+        role_response = requests.get(
+            'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+            timeout=2
+        )
+        role_name = role_response.text.strip()
+        
+        # Get credentials
+        creds_response = requests.get(
+            f'http://169.254.169.254/latest/meta-data/iam/security-credentials/{role_name}',
+            timeout=2
+        )
+        creds = creds_response.json()
+        
+        aws_access_key_id = creds['AccessKeyId']
+        aws_secret_access_key = creds['SecretAccessKey']
+        aws_session_token = creds['Token']
+        logger.info("AWS credentials fetched from IMDS")
+    except Exception as e:
+        logger.error(f"Failed to fetch AWS credentials from IMDS: {e}")
+        aws_access_key_id = None
+        aws_secret_access_key = None
+        aws_session_token = None
+    
     return {
         'kms_key_id': kms_key_id,
         'encrypted_tsk': encrypted_tsk,
-        'region': os.environ.get('AWS_REGION', 'ap-southeast-1')
+        'region': os.environ.get('AWS_REGION', 'ap-southeast-1'),
+        'aws_access_key_id': aws_access_key_id,
+        'aws_secret_access_key': aws_secret_access_key,
+        'aws_session_token': aws_session_token
     }
 
 
