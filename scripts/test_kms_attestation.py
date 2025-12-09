@@ -34,10 +34,10 @@ def test_kms_attestation():
         'region': 'ap-southeast-1'
     }
     sock.sendall(json.dumps(config_msg).encode())
-    config_sock.sendall(json.dumps(config_msg).encode())
+    sock.sendall(json.dumps(config_msg).encode())
     
     # Wait for response
-    response = config_sock.recv(4096)
+    response = sock.recv(4096)
     print(f"Config Response: {response}")
     
     result = json.loads(response.decode())
@@ -61,10 +61,10 @@ def test_kms_attestation():
         print("✅ Configuration successful! TSK decrypted via kmstool with attestation!")
     else:
         print(f"❌ Configuration failed: {result}")
-        config_sock.close() # Close the config socket on failure
+        sock.close() # Close the config socket on failure
         return False
 
-    config_sock.close() # Close the config socket after successful configuration
+    sock.close() # Close the config socket after successful configuration
     
     # Now test processing
     print("\nTesting data processing with decrypted TSK...")
