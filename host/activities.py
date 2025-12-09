@@ -5,10 +5,13 @@ Activities that communicate with the enclave via vsock.
 """
 
 import socket
-import json
-import logging
 import os
+import json
+import time
+from datetime import datetime
 from temporalio import activity
+import logging
+from functools import wraps
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +94,34 @@ def get_kms_config():
 _enclave_configured = False
 
 
+def retry_on_failure(max_retries=3, delay=1, backoff=2):
+    """Decorator to retry function on failure with exponential backoff"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            current_delay = delay
+            
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    retries += 1
+                    if retries >= max_retries:
+                        logger.error(f"{func.__name__} failed after {max_retries} retries: {e}")
+                        raise
+                    
+                    logger.warning(f"{func.__name__} failed (attempt {retries}/{max_retries}): {e}. Retrying in {current_delay}s...")
+                    time.sleep(current_delay)
+                    current_delay *= backoff
+            
+        return wrapper
+    return decorator
+
+
+@retry_on_failure(max_retries=3, delay=2)
 def configure_enclave():
-    """Send configuration to enclave on first use"""
+    """Send configuration to enclave on first use with retry logic"""
     global _enclave_configured
     
     if _enclave_configured:
@@ -102,9 +131,12 @@ def configure_enclave():
     
     config = get_kms_config()
     
+    sock = None
     try:
         sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
         sock.settimeout(10)
+        
+        logger.debug("Connecting to enclave at CID 16, port 5000...")
         sock.connect((16, 5000))
         
         # Send configuration
@@ -118,17 +150,35 @@ def configure_enclave():
         response = sock.recv(4096)
         result = json.loads(response.decode())
         
-        sock.close()
-        
         if result.get('status') == 'ok':
             logger.info("Enclave configured successfully")
             _enclave_configured = True
         else:
-            raise Exception(f"Configuration failed: {result}")
-            
+            error_msg = result.get('msg', 'unknown error')
+            error_details = result.get('details', '')
+            raise Exception(f"Configuration failed: {error_msg}. Details: {error_details}")
+    except socket.timeout:
+        raise Exception("Timeout connecting to enclave. Is the enclave running? Check with 'nitro-cli describe-enclaves'")
+    except ConnectionRefusedError:
+        raise Exception("Connection refused by enclave. Ensure enclave is running and listening on port 5000")
     except Exception as e:
-        logger.error(f"Failed to configure enclave: {e}")
+        # The retry decorator will log and re-raise, so we just re-raise here.
+        # If this is the last retry, the decorator will log the final error.
         raise
+    finally:
+        if sock:
+            sock.close()
+
+
+@activity.defn
+async def health_check() -> dict:
+    """Health check activity to verify worker and enclave status"""
+    return {
+        "status": "healthy",
+        "enclave_configured": _enclave_configured,
+        "timestamp": datetime.utcnow().isoformat(),
+        "worker": "running"
+    }
 
 
 @activity.defn

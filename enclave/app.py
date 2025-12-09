@@ -1,9 +1,9 @@
-import socket
-import sys
-import os
-import base64
-import subprocess
 import json
+import socket
+import subprocess
+import base64
+import sys
+from datetime import datetime
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 # Standard IO buffering
@@ -89,31 +89,50 @@ def run_server():
                     response = {"status": "ok", "msg": "pong"}
                     
                 elif msg_type == 'configure':
-                    CREDENTIALS['ak'] = req.get('aws_access_key_id')
-                    CREDENTIALS['sk'] = req.get('aws_secret_access_key')
-                    CREDENTIALS['token'] = req.get('aws_session_token')
-                    tsk_b64 = req.get('encrypted_tsk')
+                    # Validate required fields
+                    required_fields = ['aws_access_key_id', 'aws_secret_access_key', 'aws_session_token', 'encrypted_tsk']
+                    missing = [f for f in required_fields if not req.get(f)]
                     
-                    if tsk_b64:
-                        print("[ENCLAVE] Decrypting TSK...", flush=True)
+                    if missing:
+                        print(f"[ENCLAVE] ERROR: Missing required fields: {missing}", flush=True)
+                        response = {"status": "error", "msg": "missing_fields", "details": f"Required: {missing}"}
+                    else:
+                        CREDENTIALS['ak'] = req.get('aws_access_key_id')
+                        CREDENTIALS['sk'] = req.get('aws_secret_access_key')
+                        CREDENTIALS['token'] = req.get('aws_session_token')
+                        tsk_b64 = req.get('encrypted_tsk')
+                        
+                        print(f"[ENCLAVE] Configuring with credentials (ak={CREDENTIALS['ak'][:10]}...)", flush=True)
+                        print(f"[ENCLAVE] TSK length: {len(tsk_b64)} bytes", flush=True)
+                        print("[ENCLAVE] Decrypting TSK with KMS attestation...", flush=True)
+                        
                         tsk_bytes, err_details = kms_decrypt(tsk_b64)
                         if tsk_bytes:
                             ENCRYPTION_KEY = tsk_bytes
-                            print(f"[ENCLAVE] TSK Set! (len={len(ENCRYPTION_KEY)})", flush=True)
-                            response = {"status": "ok", "msg": "configured"}
+                            print(f"[ENCLAVE] ✅ TSK decrypted successfully! (len={len(ENCRYPTION_KEY)})", flush=True)
+                            print(f"[ENCLAVE] ✅ Enclave configured at {datetime.utcnow().isoformat()}", flush=True)
+                            response = {"status": "ok", "msg": "configured", "timestamp": datetime.utcnow().isoformat()}
                         else:
+                            print(f"[ENCLAVE] ❌ KMS decrypt failed: {err_details}", flush=True)
                             response = {"status": "error", "msg": "kms_decrypt_failed", "details": err_details}
-                    else:
-                         response = {"status": "error", "msg": "missing_tsk"}
 
                 elif msg_type == 'process':
                      if not ENCRYPTION_KEY:
-                         response = {"status": "error", "msg": "not_configured"}
+                         print("[ENCLAVE] ❌ Cannot process: enclave not configured", flush=True)
+                         response = {"status": "error", "msg": "not_configured", "details": "Call configure first"}
                      else:
-                         print("[ENCLAVE] Processing message...", flush=True)
+                         print(f"[ENCLAVE] Processing message at {datetime.utcnow().isoformat()}...", flush=True)
                          # Logic for process would go here
                          # For now just return echo
-                         response = {"status": "ok", "msg": "processed", "echo": req}
+                         response = {"status": "ok", "msg": "processed", "echo": req, "timestamp": datetime.utcnow().isoformat()}
+                         print("[ENCLAVE] ✅ Processing complete", flush=True)
+                
+                elif msg_type == 'health':
+                    response = {
+                        "status": "healthy",
+                        "configured": bool(ENCRYPTION_KEY),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
 
                 conn.sendall(json.dumps(response).encode('utf-8'))
                 
