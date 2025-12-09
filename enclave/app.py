@@ -5,32 +5,36 @@ import json
 import base64
 import os
 
+# Critical: Force line buffering for stdout/stderr to ensure logs persist
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
 # Critical: Print immediately to verify process start
-print("[ENCLAVE] Python Process Started (PID {})".format(os.getpid()), flush=True)
+print("[ENCLAVE] Python Process Started (PID {})".format(os.getpid()))
 
 # Lazy/Safe imports
 IMPORT_ERROR_TRACE = None
 try:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    print("[ENCLAVE] Cryptography imported", flush=True)
+    print(f"[ENCLAVE] Cryptography imported")
 except Exception as e:
     import traceback
     IMPORT_ERROR_TRACE = f"{e}\n{traceback.format_exc()}"
-    print(f"[ERROR] Cryptography import failed: {IMPORT_ERROR_TRACE}", flush=True)
+    print(f"[ERROR] Cryptography import failed: {IMPORT_ERROR_TRACE}")
     AESGCM = None
 
 try:
     import boto3
-    print("[ENCLAVE] Boto3 imported", flush=True)
+    print("[ENCLAVE] Boto3 imported")
 except ImportError as e:
-    print(f"[ERROR] Boto3 import failed: {e}", flush=True)
+    print(f"[ERROR] Boto3 import failed: {e}")
     boto3 = None
 
 try:
     import aws_nsm_interface
-    print("[ENCLAVE] AWS NSM Interface imported", flush=True)
+    print("[ENCLAVE] AWS NSM Interface imported")
 except ImportError as e:
-    print(f"[ERROR] AWS NSM Interface import failed: {e}", flush=True)
+    print(f"[ERROR] AWS NSM Interface import failed: {e}")
     aws_nsm_interface = None
 
 import io
@@ -43,7 +47,7 @@ class EnclaveLogger:
         # We rely on print() being redirected to the file by run.sh
         # But we can also explicitly write if needed.
         # Since run.sh does redirection, print is enough.
-        print(f"[ENCLAVE] {message}", flush=True)
+        print(f"[ENCLAVE] {message}")
         
     def get_logs(self):
         try:
@@ -65,7 +69,7 @@ class KMSAttestationClient:
         self.aws_access_key_id = None
         self.aws_secret_access_key = None
         self.aws_session_token = None
-        print(f"[ENCLAVE] KMS Client initialized (region={region}, proxy_port={proxy_port})", flush=True)
+        print(f"[ENCLAVE] KMS Client initialized (region={region}, proxy_port={proxy_port})")
     
     def set_credentials(self, access_key_id, secret_access_key, session_token):
         """Set AWS credentials for kmstool calls."""
