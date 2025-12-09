@@ -68,6 +68,9 @@ def test_kms_attestation():
         return True
     else:
         print(f"❌ Processing failed: {result}")
+        print(f"   Status: {result.get('status')}")
+        print(f"   Exception: {result.get('exception')}")
+        print(f"   Message: {result.get('msg')}")
         return False
 
 if __name__ == '__main__':
