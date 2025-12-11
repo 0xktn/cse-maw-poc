@@ -21,7 +21,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --status <wf_id|latest> Check status of a workflow"
-    echo "  --verify-cloudtrail     Run CloudTrail attestation verification on remote instance"
+    echo "  --verify                Run System Attestation Verification (CloudTrail + Logs)"
     exit 1
 }
 
@@ -35,8 +35,8 @@ if [[ "$1" == "--status" ]]; then
     if [[ -z "$WORKFLOW_ID" ]]; then
         usage
     fi
-elif [[ "$1" == "--verify-cloudtrail" ]]; then
-    MODE="verify_cloudtrail"
+elif [[ "$1" == "--verify" || "$1" == "--verify-cloudtrail" ]]; then
+    MODE="verify_attestation"
 elif [[ -n "$1" ]]; then
     usage
 fi
@@ -96,12 +96,16 @@ if [[ "$MODE" == "status" ]]; then
     exit 0
 fi
 
-if [[ "$MODE" == "verify_cloudtrail" ]]; then
-    log_info "Running CloudTrail verification on remote instance..."
+if [[ "$MODE" == "verify_attestation" ]]; then
+    log_info "Running System Attestation Verification on remote instance..."
+    
+    KMS_KEY_ID=$(state_get "kms_key_id" 2>/dev/null || echo "")
     
     COMMANDS='[
         "cd /home/ec2-user/confidential-multi-agent-workflow",
-        "PYTHONWARNINGS=ignore python3 tests/verify_cloudtrail.py"
+        "export KMS_KEY_ID='${KMS_KEY_ID}'",
+        "PYTHONWARNINGS=ignore python3 tests/verify_attestation.py > /tmp/verify_output.txt 2>&1",
+        "cat /tmp/verify_output.txt"
     ]'
 
     COMMAND_ID=$(aws ssm send-command \
