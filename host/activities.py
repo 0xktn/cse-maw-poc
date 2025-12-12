@@ -157,6 +157,19 @@ def configure_enclave():
         
         if result.get('status') == 'ok':
             logger.info("Enclave configured successfully")
+            
+            # AUTOMATIC PROOF: Save attestation document if returned
+            att_doc = result.get('attestation_document')
+            if att_doc:
+                doc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'attestation_doc.b64')
+                # If running in host/ subdir, go up one level
+                if os.path.basename(os.path.dirname(doc_path)) == 'host':
+                    doc_path = os.path.join(os.path.dirname(os.path.dirname(doc_path)), 'attestation_doc.b64')
+                
+                with open(doc_path, 'w') as f:
+                    f.write(att_doc)
+                logger.info(f"✅ SAVED ATTESTATION EVIDENCE TO: {doc_path}")
+                
             _enclave_configured = True
         else:
             error_msg = result.get('msg', 'unknown error')
