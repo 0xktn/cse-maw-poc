@@ -13,7 +13,7 @@ COPY --from=builder /usr/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
 
 # Copy application to /app
 RUN mkdir -p /app
-COPY app.py requirements.txt run.sh simple.py /app/
+COPY app.py requirements.txt run.sh /app/
 
 # Setup Python environment
 RUN cd /app && \
