@@ -50,13 +50,22 @@ cd confidential-multi-agent-workflow
 ./scripts/setup.sh
 ```
 
-### Verification
-
-Verify the system is actively securing data via hardware attestation:
-
-```bash
-./scripts/trigger.sh --verify
-```
+### Run a Workflow
+ 
+ Trigger a confidential workflow execution to see the state transfer in action:
+ 
+ ```bash
+ # On the EC2 instance
+ ./scripts/trigger.sh
+ ```
+ 
+ ### Verification
+ 
+ Verify the system is actively securing data via hardware attestation:
+ 
+ ```bash
+ ./scripts/trigger.sh --verify
+ ```
 
 **Expected Output**:
 ```
