@@ -2,15 +2,15 @@ import ctypes
 import base64
 
 # Load the NSM library
-# libnsm.so is copied to /usr/lib64/libnsm.so in the Dockerfile
-try:
-    libnsm = ctypes.CDLL("libnsm.so")
-except OSError:
-    # Fallback paths or error handling if running locally/testing
-    try:
-        libnsm = ctypes.CDLL("/usr/lib64/libnsm.so")
-    except OSError:
-        libnsm = None
+# try:
+#     libnsm = ctypes.CDLL("libnsm.so")
+# except OSError:
+#     # Fallback paths or error handling if running locally/testing
+#     try:
+#         libnsm = ctypes.CDLL("/usr/lib64/libnsm.so")
+#     except OSError:
+#         libnsm = None
+libnsm = None
 
 # Define Structs
 class NsmAttestationDocRequest(ctypes.Structure):
