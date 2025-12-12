@@ -16,8 +16,8 @@ RUN echo "DEBUG: Finding kmstool" && find /tmp/extracted_fs -name kmstool*
 RUN echo "DEBUG: FORCE FAIL" && exit 1
 
 # Copy kmstool binary and dependencies from base
-COPY --from=kmstool-base /usr/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
-COPY --from=kmstool-base /usr/lib/libnsm.so /usr/lib/libnsm.so
+ # COPY --from=kmstool-base /usr/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
+ # COPY --from=kmstool-base /usr/lib/libnsm.so /usr/lib/libnsm.so
 
 # Symlink Debian CA certs to the path expected by kmstool (built on AmazonLinux)
 RUN mkdir -p /etc/pki/tls/certs && \
