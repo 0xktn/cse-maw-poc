@@ -2,6 +2,7 @@
 FROM amazonlinux:2023 AS builder
 
 # Install build tools and pre-built Nitro libraries
+# Added pkg-config to help CMake find the libraries
 RUN dnf install -y \
     git \
     cmake \
@@ -10,11 +11,13 @@ RUN dnf install -y \
     gcc-c++ \
     openssl-devel \
     aws-nitro-enclaves-cli-devel \
+    pkg-config \
     && dnf clean all
 
 # Setup build environment
+# Point CMAKE_PREFIX_PATH to /usr where dnf installs libraries
 ENV INSTALL_PATH=/usr/local
-ENV CMAKE_PREFIX_PATH=$INSTALL_PATH
+ENV CMAKE_PREFIX_PATH=/usr:$INSTALL_PATH
 
 # Build ONLY the SDK-C Application (kmstool_enclave_cli)
 # We link against the system-installed AWS libraries (from aws-nitro-enclaves-cli-devel)
