@@ -1,6 +1,5 @@
 import json
 import os
-import nsm_util
 import socket
 import subprocess
 import base64
@@ -112,12 +111,9 @@ def run_server():
                         print(f"[ENCLAVE] TSK length: {len(tsk_b64)} bytes", flush=True)
                         print("[ENCLAVE] Decrypting TSK with KMS attestation...", flush=True)
                         
-                        # Generate fresh attestation document directly from NSM
-                        att_doc, att_err = nsm_util.get_attestation_doc_b64()
-                        if att_doc:
-                             print(f"[ENCLAVE] ✅ Generated fresh attestation document (len={len(att_doc)})", flush=True)
-                        else:
-                             print(f"[ENCLAVE] ⚠️ Failed to generate attestation document: {att_err}", flush=True)
+                        # Attestation provided implicitly via KMS Decryption success
+                        # (KMS only decrypts if PCR0 matches)
+                        print("[ENCLAVE] Requesting decryption from KMS...", flush=True)
 
                         tsk_bytes, err_details = kms_decrypt(tsk_b64)
                         if tsk_bytes:
@@ -127,9 +123,7 @@ def run_server():
                             response = {
                                 "status": "ok", 
                                 "msg": "configured", 
-                                "timestamp": datetime.utcnow().isoformat(),
-                                "attestation_document": att_doc,
-                                "attestation_error": att_err
+                                "timestamp": datetime.utcnow().isoformat()
                             }
                         else:
                             print(f"[ENCLAVE] ❌ KMS decrypt failed: {err_details}", flush=True)
