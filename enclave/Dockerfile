@@ -6,7 +6,7 @@ FROM debian:bookworm-slim AS kmstool-base
 # Install build tools and dependencies
 RUN apt-get update && apt-get install -y \
     git cmake build-essential \
-    libssl-dev golang ninja-build curl \
+    golang ninja-build curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust (required for nsm-api)
