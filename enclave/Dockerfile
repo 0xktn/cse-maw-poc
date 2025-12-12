@@ -67,6 +67,12 @@ RUN git clone --depth 1 -b v0.8.0 https://github.com/awslabs/aws-c-http.git && \
     cmake --build aws-c-http/build --target install && \
     rm -rf aws-c-http
 
+# 7.5. aws-c-sdkutils (required by aws-c-auth)
+RUN git clone --depth 1 -b v0.1.12 https://github.com/awslabs/aws-c-sdkutils.git && \
+    cmake -S aws-c-sdkutils -B aws-c-sdkutils/build -GNinja -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_PREFIX_PATH=$INSTALL_PATH && \
+    cmake --build aws-c-sdkutils/build --target install && \
+    rm -rf aws-c-sdkutils
+
 # 8. aws-c-auth
 RUN git clone --depth 1 -b v0.7.13 https://github.com/awslabs/aws-c-auth.git && \
     cmake -S aws-c-auth -B aws-c-auth/build -GNinja -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_PREFIX_PATH=$INSTALL_PATH && \
