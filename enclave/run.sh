@@ -15,7 +15,7 @@ cd /app
 source venv/bin/activate
 
 # Run app directing output to file (non-blocking)
-python3 -u app.py >> /tmp/app.log 2>&1
+python3 -u simple.py >> /tmp/app.log 2>&1
 
 # Loop forever if app crashes
 echo "[ENCLAVE] App crashed with code $?" >> /tmp/app.log
