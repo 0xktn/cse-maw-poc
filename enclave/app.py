@@ -113,11 +113,11 @@ def run_server():
                         print("[ENCLAVE] Decrypting TSK with KMS attestation...", flush=True)
                         
                         # Generate fresh attestation document directly from NSM
-                        att_doc = nsm_util.get_attestation_doc_b64()
+                        att_doc, att_err = nsm_util.get_attestation_doc_b64()
                         if att_doc:
                              print(f"[ENCLAVE] ✅ Generated fresh attestation document (len={len(att_doc)})", flush=True)
                         else:
-                             print("[ENCLAVE] ⚠️ Failed to generate attestation document via NSM", flush=True)
+                             print(f"[ENCLAVE] ⚠️ Failed to generate attestation document: {att_err}", flush=True)
 
                         tsk_bytes, err_details = kms_decrypt(tsk_b64)
                         if tsk_bytes:
@@ -128,7 +128,8 @@ def run_server():
                                 "status": "ok", 
                                 "msg": "configured", 
                                 "timestamp": datetime.utcnow().isoformat(),
-                                "attestation_document": att_doc
+                                "attestation_document": att_doc,
+                                "attestation_error": att_err
                             }
                         else:
                             print(f"[ENCLAVE] ❌ KMS decrypt failed: {err_details}", flush=True)

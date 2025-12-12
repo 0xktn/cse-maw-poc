@@ -58,20 +58,19 @@ if libnsm:
 def get_attestation_doc_b64():
     """
     Get the attestation document from the NSM and return it as a base64 string.
+    Returns: (base64_string, error_message)
     """
     if not libnsm:
-        return None
+        return None, "libnsm not loaded"
 
     # Initialize library
     if libnsm.nsm_lib_init() != 0:
-        print("[NSM] Failed to initialize NSM library", flush=True)
-        return None
+        return None, "Failed to initialize NSM library"
 
     fd = libnsm.nsm_fd_open()
     if fd < 0:
-        print("[NSM] Failed to open NSM device", flush=True)
         libnsm.nsm_lib_exit()
-        return None
+        return None, "Failed to open NSM device"
 
     try:
         # Prepare empty request (no nonce/user_data/public_key needed for basic attestation)
@@ -97,16 +96,15 @@ def get_attestation_doc_b64():
         )
         
         if res != 0:
-            print(f"[NSM] nsm_get_attestation_doc failed with code {res}", flush=True)
-            return None
+             return None, f"nsm_get_attestation_doc failed with code {res}"
             
         # Extract data
         doc_bytes = bytes(buf[:out_len.value])
-        return base64.b64encode(doc_bytes).decode('utf-8')
+        return base64.b64encode(doc_bytes).decode('utf-8'), None
 
     except Exception as e:
-        print(f"[NSM] Exception during attestation retrieval: {e}", flush=True)
-        return None
+        # Return error message for debugging
+        return None, str(e)
     finally:
         libnsm.nsm_fd_close(fd)
         libnsm.nsm_lib_exit()
