@@ -169,6 +169,10 @@ def configure_enclave():
                 with open(doc_path, 'w') as f:
                     f.write(att_doc)
                 logger.info(f"✅ SAVED ATTESTATION EVIDENCE TO: {doc_path}")
+            
+            att_err = result.get('attestation_error')
+            if att_err:
+                logger.error(f"⚠️ Enclave reported attestation error: {att_err}")
                 
             _enclave_configured = True
         else:
