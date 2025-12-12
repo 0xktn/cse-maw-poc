@@ -20,7 +20,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 ENV INSTALL_PATH=/usr/local
 ENV CMAKE_PREFIX_PATH=$INSTALL_PATH
 ENV LD_LIBRARY_PATH=$INSTALL_PATH/lib:$INSTALL_PATH/lib64:$LD_LIBRARY_PATH
-# Force C99/GNU99 standard to allow nested functions and permissive syntax
+# Also set ENV CFLAGS as a fallback
 ENV CFLAGS="-std=gnu99 -Wno-error -w"
 
 # 1. aws-lc (requires Go)
@@ -31,6 +31,7 @@ RUN git clone --depth 1 -b v1.19.0 https://github.com/aws/aws-lc.git && \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=ON \
     -DDISABLE_GO=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     go env -w GOPROXY=direct && \
     cmake --build aws-lc/build --target install && \
@@ -45,6 +46,7 @@ RUN git clone --depth 1 -b v1.3.26 https://github.com/aws/s2n-tls.git && \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build s2n-tls/build --target install && \
     rm -rf s2n-tls
@@ -58,6 +60,7 @@ RUN git clone --depth 1 -b v0.9.12 https://github.com/awslabs/aws-c-common.git &
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-c-common/build --target install && \
     rm -rf aws-c-common
@@ -71,6 +74,7 @@ RUN git clone --depth 1 -b v0.6.11 https://github.com/awslabs/aws-c-cal.git && \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-c-cal/build --target install && \
     rm -rf aws-c-cal
@@ -84,6 +88,7 @@ RUN git clone --depth 1 -b v0.13.1 https://github.com/awslabs/aws-c-io.git && \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-c-io/build --target install && \
     rm -rf aws-c-io
@@ -97,6 +102,7 @@ RUN git clone --depth 1 -b v0.2.16 https://github.com/awslabs/aws-c-compression.
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-c-compression/build --target install && \
     rm -rf aws-c-compression
@@ -110,6 +116,7 @@ RUN git clone --depth 1 -b v0.8.0 https://github.com/awslabs/aws-c-http.git && \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-c-http/build --target install && \
     rm -rf aws-c-http
@@ -123,6 +130,7 @@ RUN git clone --depth 1 -b v0.1.12 https://github.com/awslabs/aws-c-sdkutils.git
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-c-sdkutils/build --target install && \
     rm -rf aws-c-sdkutils
@@ -136,6 +144,7 @@ RUN git clone --depth 1 -b v0.7.13 https://github.com/awslabs/aws-c-auth.git && 
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-c-auth/build --target install && \
     rm -rf aws-c-auth
@@ -160,7 +169,7 @@ RUN git clone --depth 1 -b v0.4.3 https://github.com/aws/aws-nitro-enclaves-sdk-
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
-    -DCMAKE_C_FLAGS="-w -Wno-error -Wno-pedantic -std=gnu99" \
+    -DCMAKE_C_FLAGS="-std=gnu99 -Wno-error -w" \
     && \
     cmake --build aws-nitro-enclaves-sdk-c/build --target install && \
     rm -rf aws-nitro-enclaves-sdk-c
