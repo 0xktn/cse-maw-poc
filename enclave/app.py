@@ -1,4 +1,5 @@
 import json
+import os
 import socket
 import subprocess
 import base64
@@ -32,8 +33,11 @@ def kms_decrypt(ciphertext_b64):
             '--ciphertext', ciphertext_b64
         ]
         
+        env = os.environ.copy()
+        env['AWS_COMMON_RUNTIME_LOG_LEVEL'] = 'Trace'
+        
         result = subprocess.run(
-            cmd, capture_output=True, text=True, check=True
+            cmd, capture_output=True, text=True, check=True, env=env
         )
         
         output = result.stdout.strip()
