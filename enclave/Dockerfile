@@ -17,8 +17,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     libjson-c-dev \
     golang \
-    cargo \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup (Debian's cargo is too old - 1.63, we need 1.68+)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Setup build environment
 ENV INSTALL_PATH=/usr/local
