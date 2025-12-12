@@ -1,5 +1,6 @@
 import json
 import os
+import nsm_util
 import socket
 import subprocess
 import base64
@@ -33,6 +34,7 @@ def kms_decrypt(ciphertext_b64):
             '--ciphertext', ciphertext_b64
         ]
         
+        # Keep trace logging for debug but no regex scraping needed
         env = os.environ.copy()
         env['AWS_COMMON_RUNTIME_LOG_LEVEL'] = 'Trace'
         
@@ -40,36 +42,22 @@ def kms_decrypt(ciphertext_b64):
             cmd, capture_output=True, text=True, check=True, env=env
         )
         
-        att_doc = None
-        if result.stderr:
-            # Smart Filter: Find attestation document in the massive trace logs
-            # Look for context like "attestationDocument": "base64..." or hex dumps
-            import re
-            # Pattern to find 'attestationDocument': '...' or "..."
-            match = re.search(r'["\']attestationDocument["\']\s*:\s*["\']([^"\']+)["\']', result.stderr)
-            if match:
-                 att_doc = match.group(1)
-                 print(f"\n[ENCLAVE] ✅ DETECTED ATTESTATION DOCUMENT (Length: {len(att_doc)})", flush=True)
-            else:
-                 # If we can't find it, print a snippet to help debug format
-                 print(f"[ENCLAVE] Trace Log (First 500 chars): {result.stderr[:500]}", flush=True)
-
         output = result.stdout.strip()
         # Parse PLAINTEXT: <base64>
         marker = "PLAINTEXT:"
         if marker in output:
             payload = output.split(marker, 1)[1].strip()
-            return (base64.b64decode(payload), None, att_doc)
-        return (base64.b64decode(output), None, att_doc)
+            return (base64.b64decode(payload), None)
+        return (base64.b64decode(output), None)
 
     except subprocess.CalledProcessError as e:
         err_msg = e.stderr.strip()
         print(f"[ERROR] KMS Tool Failed: {err_msg}", flush=True)
-        return (None, err_msg, None)
+        return (None, err_msg)
     except Exception as e:
         err_msg = str(e)
         print(f"[ERROR] KMS Decrypt Exception: {err_msg}", flush=True)
-        return (None, err_msg, None)
+        return (None, err_msg)
 
 def run_server():
     global ENCRYPTION_KEY
@@ -124,7 +112,14 @@ def run_server():
                         print(f"[ENCLAVE] TSK length: {len(tsk_b64)} bytes", flush=True)
                         print("[ENCLAVE] Decrypting TSK with KMS attestation...", flush=True)
                         
-                        tsk_bytes, err_details, att_doc = kms_decrypt(tsk_b64)
+                        # Generate fresh attestation document directly from NSM
+                        att_doc = nsm_util.get_attestation_doc_b64()
+                        if att_doc:
+                             print(f"[ENCLAVE] ✅ Generated fresh attestation document (len={len(att_doc)})", flush=True)
+                        else:
+                             print("[ENCLAVE] ⚠️ Failed to generate attestation document via NSM", flush=True)
+
+                        tsk_bytes, err_details = kms_decrypt(tsk_b64)
                         if tsk_bytes:
                             ENCRYPTION_KEY = tsk_bytes
                             print(f"[ENCLAVE] ✅ TSK decrypted successfully! (len={len(ENCRYPTION_KEY)})", flush=True)
