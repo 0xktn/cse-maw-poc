@@ -1,35 +1,15 @@
 #!/bin/sh
 
-# Log everything to console
-exec 2>&1
+# Log to null to avoid blocking on broken console pipe
+exec 1>/dev/null
+exec 2>/dev/null
 
-echo "[ENCLAVE] ==============================" > /dev/console
-echo "[ENCLAVE] Enclave starting up..." > /dev/console
-echo "[ENCLAVE] ==============================" > /dev/console
-
-# Setup log file
-touch /tmp/enclave.log
-
-# Background listener: echo status to console every 5s
-(
-  while true; do
-    echo "=== [$(date)] ENCLAVE HEARTBEAT ===" > /dev/console
-    ps aux > /dev/console 2>&1 || echo "ps failed" > /dev/console
-    tail -20 /tmp/enclave.log > /dev/console 2>&1 || true
-    sleep 5
-  done
-) &
-
-echo "[ENCLAVE] Starting Python app (Direct to Console)..." > /dev/console
+# Setup Python environment
 cd /app
 source venv/bin/activate
-python3 -u app.py > /dev/console 2>&1
-EXIT_CODE=$?
 
-echo "[ENCLAVE] App exited with code $EXIT_CODE" | tee -a /tmp/enclave.log > /dev/console
+# Run app
+python3 -u app.py > /dev/null 2>&1
 
-# Keep alive for debugging
-echo "[ENCLAVE] Entering keep-alive loop..." > /dev/console
-while true; do
-  sleep 60
-done
+# Loop forever if app crashes
+while true; do sleep 60; done
