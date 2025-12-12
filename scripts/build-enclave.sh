@@ -13,7 +13,7 @@ OUTPUT_DIR="$PROJECT_ROOT/build"
 export NITRO_CLI_ARTIFACTS="$OUTPUT_DIR"
 
 echo "Building enclave Docker image..."
-docker build -t confidential-enclave:latest "$ENCLAVE_DIR"
+docker build --pull=always -t confidential-enclave:latest "$ENCLAVE_DIR"
 
 echo "Creating output directory..."
 mkdir -p "$OUTPUT_DIR"
