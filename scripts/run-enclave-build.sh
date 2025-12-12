@@ -39,7 +39,7 @@ COMMANDS='[
     "mkdir -p build",
     "cd enclave && docker build -t confidential-enclave:latest . 2>&1",
     "nitro-cli build-enclave --docker-uri confidential-enclave:latest --output-file /home/ec2-user/confidential-multi-agent-workflow/build/enclave.eif 2>&1 | tee /tmp/enclave-build.log",
-    "cat /tmp/enclave-build.log"
+    "tail -n 500 /tmp/enclave-build.log"
 ]'
 
 COMMAND_ID=$(aws ssm send-command \
