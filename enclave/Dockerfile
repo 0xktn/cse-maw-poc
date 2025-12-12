@@ -9,15 +9,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# DEBUG: Extact and find files
-COPY --from=kmstool-base / /tmp/extracted_fs/
-RUN echo "DEBUG: Finding libnsm.so" && find /tmp/extracted_fs -name libnsm.so
-RUN echo "DEBUG: Finding kmstool" && find /tmp/extracted_fs -name kmstool*
-RUN echo "DEBUG: FORCE FAIL" && exit 1
-
 # Copy kmstool binary and dependencies from base
- # COPY --from=kmstool-base /usr/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
- # COPY --from=kmstool-base /usr/lib/libnsm.so /usr/lib/libnsm.so
+# Rename kmstool_enclave -> kmstool_enclave_cli as expected by run.sh
+COPY --from=kmstool-base /usr/bin/kmstool_enclave /usr/bin/kmstool_enclave_cli
+# Use wildcard to match libnsm.so (found in /usr/lib or /usr/lib64 depending on base)
+COPY --from=kmstool-base /usr/lib*/libnsm.so /usr/lib/libnsm.so
 
 # Symlink Debian CA certs to the path expected by kmstool (built on AmazonLinux)
 RUN mkdir -p /etc/pki/tls/certs && \
