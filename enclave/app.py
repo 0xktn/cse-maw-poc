@@ -40,6 +40,9 @@ def kms_decrypt(ciphertext_b64):
             cmd, capture_output=True, text=True, check=True, env=env
         )
         
+        if result.stderr:
+            print(f"[ENCLAVE] KMS Tool Stderr (Trace):\n{result.stderr}", flush=True)
+
         output = result.stdout.strip()
         # Parse PLAINTEXT: <base64>
         marker = "PLAINTEXT:"
