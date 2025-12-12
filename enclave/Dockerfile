@@ -20,6 +20,8 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 ENV INSTALL_PATH=/usr/local
 ENV CMAKE_PREFIX_PATH=$INSTALL_PATH
 ENV LD_LIBRARY_PATH=$INSTALL_PATH/lib:$INSTALL_PATH/lib64:$LD_LIBRARY_PATH
+# Force C99/GNU99 standard to allow nested functions and permissive syntax
+ENV CFLAGS="-std=gnu99 -Wno-error -w"
 
 # 1. aws-lc (requires Go)
 RUN git clone --depth 1 -b v1.19.0 https://github.com/aws/aws-lc.git && \
@@ -158,7 +160,7 @@ RUN git clone --depth 1 -b v0.4.3 https://github.com/aws/aws-nitro-enclaves-sdk-
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
     -DAWS_WARNINGS_ARE_ERRORS=OFF \
-    -DCMAKE_C_FLAGS="-w -Wno-error -Wno-pedantic" \
+    -DCMAKE_C_FLAGS="-w -Wno-error -Wno-pedantic -std=gnu99" \
     && \
     cmake --build aws-nitro-enclaves-sdk-c/build --target install && \
     rm -rf aws-nitro-enclaves-sdk-c
