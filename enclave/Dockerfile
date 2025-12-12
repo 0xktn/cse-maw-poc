@@ -1,46 +1,51 @@
-# Builder: Amazon Linux 2023 (Has pre-built Nitro libs)
-FROM amazonlinux:2023 AS builder
+# Builder: Amazon Linux 2 (Official Enclave OS)
+FROM amazonlinux:2 AS builder
 
-# Install build tools and pre-built Nitro libraries
-# Added pkg-config to help CMake find the libraries
-RUN dnf install -y \
+# Install amazon-linux-extras and enable nitro-enclaves
+RUN amazon-linux-extras install aws-nitro-enclaves-cli -y && \
+    yum install -y \
     git \
-    cmake \
-    ninja-build \
     gcc \
     gcc-c++ \
-    openssl-devel \
+    cmake \
+    ninja-build \
     aws-nitro-enclaves-cli-devel \
-    pkg-config \
-    && dnf clean all
+    openssl-devel \
+    pkgconfig \
+    yum-utils \
+    && yum clean all
+
+# Build dependencies/tools if not present in AL2 default repos
+# AL2 cmake is often old (v2.8), we might need v3.
+# Checking if cmake3 is available
+RUN yum install -y cmake3 && \
+    ln -sf /usr/bin/cmake3 /usr/bin/cmake
 
 # Setup build environment
-# Point CMAKE_PREFIX_PATH to /usr where dnf installs libraries
 ENV INSTALL_PATH=/usr/local
 ENV CMAKE_PREFIX_PATH=/usr:$INSTALL_PATH
 
 # Build ONLY the SDK-C Application (kmstool_enclave_cli)
-# We link against the system-installed AWS libraries (from aws-nitro-enclaves-cli-devel)
 RUN git clone --depth 1 -b v0.4.3 https://github.com/aws/aws-nitro-enclaves-sdk-c.git && \
-    cmake -S aws-nitro-enclaves-sdk-c -B aws-nitro-enclaves-sdk-c/build -GNinja \
+    cmake3 -S aws-nitro-enclaves-sdk-c -B aws-nitro-enclaves-sdk-c/build -GNinja \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
     && \
-    cmake --build aws-nitro-enclaves-sdk-c/build --target install && \
+    cmake3 --build aws-nitro-enclaves-sdk-c/build --target install && \
     rm -rf aws-nitro-enclaves-sdk-c
 
-# Final Stage: Amazon Linux 2023 (Runtime)
-FROM amazonlinux:2023
+# Final Stage: Amazon Linux 2
+FROM amazonlinux:2
 
-# Install runtime dependencies (Python + Nitro CLI libs)
-RUN dnf install -y \
+# Install runtime dependencies
+RUN amazon-linux-extras install aws-nitro-enclaves-cli -y && \
+    yum install -y \
     python3 \
     python3-pip \
-    aws-nitro-enclaves-cli \
     findutils \
-    && dnf clean all
+    && yum clean all
 
 # Copy artifact
 COPY --from=builder /usr/local/bin/kmstool_enclave_cli /usr/bin/kmstool_enclave_cli
