@@ -40,6 +40,7 @@ def kms_decrypt(ciphertext_b64):
             cmd, capture_output=True, text=True, check=True, env=env
         )
         
+        att_doc = None
         if result.stderr:
             # Smart Filter: Find attestation document in the massive trace logs
             # Look for context like "attestationDocument": "base64..." or hex dumps
@@ -49,7 +50,6 @@ def kms_decrypt(ciphertext_b64):
             if match:
                  att_doc = match.group(1)
                  print(f"\n[ENCLAVE] ✅ DETECTED ATTESTATION DOCUMENT (Length: {len(att_doc)})", flush=True)
-                 print(f"[ENCLAVE] EVIDENCE:\n{att_doc}\n", flush=True)
             else:
                  # If we can't find it, print a snippet to help debug format
                  print(f"[ENCLAVE] Trace Log (First 500 chars): {result.stderr[:500]}", flush=True)
@@ -59,17 +59,17 @@ def kms_decrypt(ciphertext_b64):
         marker = "PLAINTEXT:"
         if marker in output:
             payload = output.split(marker, 1)[1].strip()
-            return (base64.b64decode(payload), None)
-        return (base64.b64decode(output), None)
+            return (base64.b64decode(payload), None, att_doc)
+        return (base64.b64decode(output), None, att_doc)
 
     except subprocess.CalledProcessError as e:
         err_msg = e.stderr.strip()
         print(f"[ERROR] KMS Tool Failed: {err_msg}", flush=True)
-        return (None, err_msg)
+        return (None, err_msg, None)
     except Exception as e:
         err_msg = str(e)
         print(f"[ERROR] KMS Decrypt Exception: {err_msg}", flush=True)
-        return (None, err_msg)
+        return (None, err_msg, None)
 
 def run_server():
     global ENCRYPTION_KEY
@@ -124,12 +124,17 @@ def run_server():
                         print(f"[ENCLAVE] TSK length: {len(tsk_b64)} bytes", flush=True)
                         print("[ENCLAVE] Decrypting TSK with KMS attestation...", flush=True)
                         
-                        tsk_bytes, err_details = kms_decrypt(tsk_b64)
+                        tsk_bytes, err_details, att_doc = kms_decrypt(tsk_b64)
                         if tsk_bytes:
                             ENCRYPTION_KEY = tsk_bytes
                             print(f"[ENCLAVE] ✅ TSK decrypted successfully! (len={len(ENCRYPTION_KEY)})", flush=True)
                             print(f"[ENCLAVE] ✅ Enclave configured at {datetime.utcnow().isoformat()}", flush=True)
-                            response = {"status": "ok", "msg": "configured", "timestamp": datetime.utcnow().isoformat()}
+                            response = {
+                                "status": "ok", 
+                                "msg": "configured", 
+                                "timestamp": datetime.utcnow().isoformat(),
+                                "attestation_document": att_doc
+                            }
                         else:
                             print(f"[ENCLAVE] ❌ KMS decrypt failed: {err_details}", flush=True)
                             response = {"status": "error", "msg": "kms_decrypt_failed", "details": err_details}
