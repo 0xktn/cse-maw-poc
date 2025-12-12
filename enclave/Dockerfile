@@ -28,7 +28,7 @@ RUN git clone --depth 1 -b v1.19.0 https://github.com/aws/aws-lc.git && \
     -DBUILD_TESTING=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DDISABLE_GO=OFF \
     && \
     go env -w GOPROXY=direct && \
     cmake --build aws-lc/build --target install && \
@@ -42,7 +42,7 @@ RUN git clone --depth 1 -b v1.3.26 https://github.com/aws/s2n-tls.git && \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DUNSAFE_TREAT_WARNINGS_AS_ERRORS=OFF \
     && \
     cmake --build s2n-tls/build --target install && \
     rm -rf s2n-tls
@@ -55,7 +55,7 @@ RUN git clone --depth 1 -b v0.9.12 https://github.com/awslabs/aws-c-common.git &
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
     && \
     cmake --build aws-c-common/build --target install && \
     rm -rf aws-c-common
@@ -68,7 +68,7 @@ RUN git clone --depth 1 -b v0.6.11 https://github.com/awslabs/aws-c-cal.git && \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
     && \
     cmake --build aws-c-cal/build --target install && \
     rm -rf aws-c-cal
@@ -81,7 +81,7 @@ RUN git clone --depth 1 -b v0.13.1 https://github.com/awslabs/aws-c-io.git && \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
     && \
     cmake --build aws-c-io/build --target install && \
     rm -rf aws-c-io
@@ -94,7 +94,7 @@ RUN git clone --depth 1 -b v0.2.16 https://github.com/awslabs/aws-c-compression.
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
     && \
     cmake --build aws-c-compression/build --target install && \
     rm -rf aws-c-compression
@@ -107,7 +107,7 @@ RUN git clone --depth 1 -b v0.8.0 https://github.com/awslabs/aws-c-http.git && \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
     && \
     cmake --build aws-c-http/build --target install && \
     rm -rf aws-c-http
@@ -120,7 +120,7 @@ RUN git clone --depth 1 -b v0.1.12 https://github.com/awslabs/aws-c-sdkutils.git
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
     && \
     cmake --build aws-c-sdkutils/build --target install && \
     rm -rf aws-c-sdkutils
@@ -133,7 +133,7 @@ RUN git clone --depth 1 -b v0.7.13 https://github.com/awslabs/aws-c-auth.git && 
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
     && \
     cmake --build aws-c-auth/build --target install && \
     rm -rf aws-c-auth
@@ -149,6 +149,7 @@ RUN git clone --depth 1 -b v0.4.0 https://github.com/aws/aws-nitro-enclaves-nsm-
 
 # 11. aws-nitro-enclaves-sdk-c
 # Fix: Disable -Werror with -DCMAKE_C_FLAGS="-w" to avoid deprecated API warnings failing the build
+# Also disable AWS_WARNINGS_ARE_ERRORS
 RUN git clone --depth 1 -b v0.4.3 https://github.com/aws/aws-nitro-enclaves-sdk-c.git && \
     cmake -S aws-nitro-enclaves-sdk-c -B aws-nitro-enclaves-sdk-c/build -GNinja \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
@@ -156,7 +157,8 @@ RUN git clone --depth 1 -b v0.4.3 https://github.com/aws/aws-nitro-enclaves-sdk-
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=$INSTALL_PATH \
     -DBUILD_SHARED_LIBS=ON \
-    -DCMAKE_C_FLAGS="-w" \
+    -DAWS_WARNINGS_ARE_ERRORS=OFF \
+    -DCMAKE_C_FLAGS="-w -Wno-error -Wno-pedantic" \
     && \
     cmake --build aws-nitro-enclaves-sdk-c/build --target install && \
     rm -rf aws-nitro-enclaves-sdk-c
