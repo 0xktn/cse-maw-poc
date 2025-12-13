@@ -35,18 +35,18 @@ log_info "Enclave config: ${ENCLAVE_CPU} CPUs, ${ENCLAVE_MEM} MB memory"
 
 # Run enclave with correct path - includes vsock-proxy setup
 COMMANDS="[
-    \\\"export HOME=/root\\\",
-    \\\"cd /home/ec2-user/confidential-multi-agent-workflow\\\",
-    \\\"export NITRO_CLI_ARTIFACTS=/home/ec2-user/confidential-multi-agent-workflow/build\\\",
-    \\\"echo '[FIX1] Stopping existing vsock-proxy...'\\\",
-    \\\"pkill vsock-proxy || true\\\",
-    \\\"echo '[FIX1] Starting vsock-proxy for KMS...' \\\",
-    \\\"nohup vsock-proxy 8000 kms.${AWS_REGION}.amazonaws.com 443 > /tmp/vsock-proxy.log 2>&1 &\\\",
-    \\\"sleep 2\\\",
-    \\\"pgrep vsock-proxy && echo '[FIX1] vsock-proxy running' || { echo '[ERROR] vsock-proxy failed'; exit 1; }\\\",
-    \\\"nitro-cli run-enclave --cpu-count ${ENCLAVE_CPU} --memory ${ENCLAVE_MEM} --eif-path /home/ec2-user/confidential-multi-agent-workflow/build/enclave.eif --enclave-cid 16 2>&1 || echo ENCLAVE_FAILED\\\",
-    \\\"sleep 3\\\",
-    \\\"nitro-cli describe-enclaves\\\"
+    \"export HOME=/root\",
+    \"cd /home/ec2-user/confidential-multi-agent-workflow\",
+    \"export NITRO_CLI_ARTIFACTS=/home/ec2-user/confidential-multi-agent-workflow/build\",
+    \"echo '[FIX1] Stopping existing vsock-proxy...'\",
+    \"pkill vsock-proxy || true\",
+    \"echo '[FIX1] Starting vsock-proxy for KMS...' \",
+    \"nohup vsock-proxy 8000 kms.${AWS_REGION}.amazonaws.com 443 > /tmp/vsock-proxy.log 2>&1 &\",
+    \"sleep 2\",
+    \"pgrep vsock-proxy && echo '[FIX1] vsock-proxy running' || { echo '[ERROR] vsock-proxy failed'; exit 1; }\",
+    \"nitro-cli run-enclave --cpu-count ${ENCLAVE_CPU} --memory ${ENCLAVE_MEM} --eif-path /home/ec2-user/confidential-multi-agent-workflow/build/enclave.eif --enclave-cid 16 2>&1 || echo ENCLAVE_FAILED\",
+    \"sleep 3\",
+    \"nitro-cli describe-enclaves\"
 ]"
 
 COMMAND_ID=$(aws ssm send-command \
