@@ -1,11 +1,11 @@
 # Use pre-built kmstool image from GHCR
 FROM ghcr.io/0xktn/kmstool:v0.4.3 AS builder
 
-# Final stage: Amazon Linux 2 runtime
-FROM public.ecr.aws/amazonlinux/amazonlinux:2
+# Final stage: Amazon Linux 2023 runtime
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 
 # Install runtime dependencies
-RUN yum install -y python3 python3-pip findutils && yum clean all
+RUN dnf install -y python3 python3-pip findutils && dnf clean all
 
 # Copy built artifacts from pre-built image
 COPY --from=builder /usr/lib64/libnsm.so /usr/lib64/libnsm.so
