@@ -134,21 +134,48 @@ if [[ "$MODE" == "verify_attestation" ]]; then
     log_info "Searching CloudTrail for KMS Decrypt events with Nitro Enclave attestation..."
     echo ""
     
-    # Fetch CloudTrail events
-    ATTESTATION=$(aws cloudtrail lookup-events \
-        --region "$AWS_REGION" \
-        --lookup-attributes AttributeKey=EventName,AttributeValue=Decrypt \
-        --start-time "$START_TIME" \
-        --end-time "$END_TIME" \
-        --output json 2>/dev/null | \
-        jq -r '.Events[] | select(.CloudTrailEvent | contains("nitro_enclaves")) | .CloudTrailEvent | fromjson' | \
-        head -1)
+    # Poll CloudTrail for up to 5 minutes (30 attempts x 10 seconds)
+    MAX_ATTEMPTS=30
+    ATTEMPT=0
+    ATTESTATION=""
+    
+    while [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; do
+        ATTEMPT=$((ATTEMPT + 1))
+        
+        # Fetch CloudTrail events
+        ATTESTATION=$(aws cloudtrail lookup-events \
+            --region "$AWS_REGION" \
+            --lookup-attributes AttributeKey=EventName,AttributeValue=Decrypt \
+            --start-time "$START_TIME" \
+            --end-time "$END_TIME" \
+            --output json 2>/dev/null | \
+            jq -r '.Events[] | select(.CloudTrailEvent | contains("nitro_enclaves")) | .CloudTrailEvent | fromjson' | \
+            head -1)
+        
+        if [[ -n "$ATTESTATION" ]]; then
+            echo ""
+            log_info "✅ Attestation document found!"
+            break
+        fi
+        
+        # Show progress
+        ELAPSED=$((ATTEMPT * 10))
+        echo -ne "\r[${ATTEMPT}/${MAX_ATTEMPTS}] Polling CloudTrail... (${ELAPSED}s elapsed, CloudTrail has 2-5min delay)    "
+        
+        sleep 10
+        
+        # Update end time for next iteration
+        END_TIME=$(date -u '+%Y-%m-%dT%H:%M:%S')
+    done
+    
+    echo ""
+    echo ""
     
     if [[ -z "$ATTESTATION" ]]; then
-        log_error "No attestation document found in CloudTrail"
+        log_error "No attestation document found after ${MAX_ATTEMPTS} attempts (5 minutes)"
         log_info "This could mean:"
         log_info "  - The workflow hasn't run yet"
-        log_info "  - CloudTrail events are still propagating (wait 1-2 minutes)"
+        log_info "  - CloudTrail events are still propagating (can take up to 15 minutes in rare cases)"
         log_info "  - The enclave didn't decrypt any secrets"
         exit 1
     fi
