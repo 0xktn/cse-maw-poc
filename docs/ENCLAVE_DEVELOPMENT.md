@@ -1,14 +1,14 @@
 # Enclave Development
 
-This guide covers developing the trusted application that runs inside the AWS Nitro Enclave, handling secure data processing, encryption, and attestation.
+This guide covers the trusted application running inside the AWS Nitro Enclave, which handles secure data processing and encryption.
 
 ## Overview
 
 The enclave application is the "Trusted" component that:
-1. Listens for commands via vsock
-2. Retrieves the Trusted Session Key (TSK) from KMS using attestation
-3. Decrypts incoming ciphertext, processes data, and encrypts results
-4. Returns encrypted data to the host
+1. Listens for commands via vsock (port 5000)
+2. Retrieves the Trusted Session Key (TSK) from KMS using hardware attestation
+3. Encrypts/decrypts workflow data using AES-256-GCM
+4. Returns encrypted results to the host
 
 ```
 ┌────────────────────────────────────────┐
@@ -19,384 +19,230 @@ The enclave application is the "Trusted" component that:
 │  └────┬─────┘  └────┬─────┘           │
 │       │             │                  │
 │  ┌────▼─────────────▼─────┐           │
-│  │      Agent Logic       │           │
-│  │  (Encrypt/Decrypt/     │           │
-│  │   Process)             │           │
+│  │   Encrypt/Decrypt      │           │
+│  │   Workflow Logic       │           │
 │  └────────────────────────┘           │
 └────────────────────────────────────────┘
 ```
-
-## Prerequisites
-
-- Docker installed on EC2 instance
-- aws-nitro-enclaves-cli installed
-- AWS credentials configured
-- Python 3.9+ (for enclave application)
 
 ## Project Structure
 
 ```
 enclave/
-├── Dockerfile           # Multi-stage build for minimal EIF
+├── Dockerfile           # Minimal EIF build
 ├── requirements.txt     # Python dependencies
 ├── app.py              # Main enclave application
-├── attestation.py      # KMS attestation client
-├── crypto.py           # Encryption/decryption utilities
-└── agent.py            # Agent A and Agent B logic
+└── run.sh              # Startup script
 ```
 
-## Step 1: Create the Dockerfile
+## Implementation
 
-Create a minimal Docker image for the enclave:
+### Dockerfile
+
+The enclave uses a minimal Amazon Linux 2023 image:
 
 ```dockerfile
-# enclave/Dockerfile
-# enclave/Dockerfile
 FROM amazonlinux:2023
 
-# Install system dependencies (verified for amazonlinux)
-RUN dnf install -y python3.11 python3.11-pip openssl openssl-devel gcc libffi-devel python3-devel && \
-    dnf clean all
+# Install Python and dependencies
+RUN dnf install -y python3.11 python3.11-pip && dnf clean all
 
+# Copy kmstool_enclave_cli for KMS attestation
+COPY kmstool_enclave_cli /usr/bin/
+COPY libnsm.so /usr/lib64/
+
+# Install Python packages
 WORKDIR /app
-
-# Install dependencies (requires gcc/openssl-devel for cryptography)
-COPY requirements.txt .
+COPY enclave/requirements.txt .
 RUN pip3.11 install --no-cache-dir -r requirements.txt
 
-WORKDIR /app
-
 # Copy application
-COPY . .
+COPY enclave/app.py enclave/run.sh ./
+RUN chmod +x run.sh
 
-# Run Python app (explicit python3.11)
-CMD ["python3.11", "/app/app.py"]
+CMD ["/app/run.sh"]
 ```
 
-## Step 2: Install Dependencies
+### Dependencies
 
 ```txt
 # enclave/requirements.txt
-boto3>=1.28.0
 cryptography>=41.0.0
-protobuf>=4.24.0
 ```
 
-## Step 3: Implement vsock Listener
+### Main Application
 
-The enclave communicates with the host via vsock:
+The enclave application (`app.py`) implements:
 
-```python
-# enclave/app.py
-import socket
-import json
-import logging
-from attestation import get_trusted_session_key
-from agent import AgentA, AgentB
+1. **vsock Server**: Listens on port 5000 for host connections
+2. **KMS Attestation**: Uses `kmstool_enclave_cli` to decrypt the TSK with hardware attestation
+3. **Encryption/Decryption**: AES-256-GCM for workflow data
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+Key functions:
+- `kms_decrypt(encrypted_tsk)` - Retrieves TSK from KMS with attestation
+- `encrypt(plaintext, key)` - AES-256-GCM encryption
+- `decrypt(ciphertext, key)` - AES-256-GCM decryption
+- `handle_client(conn)` - Processes workflow requests
 
-# vsock configuration
-VSOCK_PORT = 5000
-VSOCK_CID = 3  # Any CID for listening
-
-def create_vsock_server():
-    """Create a vsock server socket."""
-    sock = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((socket.VMADDR_CID_ANY, VSOCK_PORT))
-    sock.listen(5)
-    logger.info(f"Enclave listening on vsock port {VSOCK_PORT}")
-    return sock
-
-def handle_request(conn, tsk):
-    """Handle a single request from the host."""
-    try:
-        # Receive data length first (4 bytes)
-        length_bytes = conn.recv(4)
-        if not length_bytes:
-            return
-        
-        data_length = int.from_bytes(length_bytes, 'big')
-        
-        # Receive the full payload
-        data = b''
-        while len(data) < data_length:
-            chunk = conn.recv(min(4096, data_length - len(data)))
-            if not chunk:
-                break
-            data += chunk
-        
-        # Parse request
-        request = json.loads(data.decode('utf-8'))
-        mode = request.get('mode')
-        payload = request.get('payload')
-        
-        # Route to appropriate agent
-        if mode == 'A':
-            result = AgentA(tsk).process(payload)
-        elif mode == 'B':
-            result = AgentB(tsk).process(payload)
-        else:
-            result = {'error': f'Unknown mode: {mode}'}
-        
-        # Send response
-        response = json.dumps(result).encode('utf-8')
-        conn.sendall(len(response).to_bytes(4, 'big'))
-        conn.sendall(response)
-        
-    except Exception as e:
-        logger.error(f"Error handling request: {e}")
-        error_response = json.dumps({'error': str(e)}).encode('utf-8')
-        conn.sendall(len(error_response).to_bytes(4, 'big'))
-        conn.sendall(error_response)
-
-def main():
-    """Main enclave entry point."""
-    logger.info("Enclave starting...")
-    
-    # Retrieve TSK from KMS with attestation
-    logger.info("Retrieving Trusted Session Key from KMS...")
-    tsk = get_trusted_session_key()
-    logger.info("TSK retrieved successfully")
-    
-    # Start vsock server
-    server = create_vsock_server()
-    
-    while True:
-        conn, addr = server.accept()
-        logger.info(f"Connection from CID: {addr[0]}")
-        try:
-            handle_request(conn, tsk)
-        finally:
-            conn.close()
-
-if __name__ == "__main__":
-    main()
-```
-
-## Step 4: Implement Attestation Client
+### KMS Attestation Flow
 
 ```python
-# enclave/attestation.py
-import boto3
-import base64
-import json
-import subprocess
-from botocore.config import Config
-
-def get_attestation_document():
-    """
-    Request attestation document from Nitro Hypervisor.
-    This is only available inside a Nitro Enclave.
-    """
-    # Use the Nitro Security Module (NSM) to generate attestation
-    # In a real enclave, use the NSM library
-    # For development/testing, this returns a placeholder
-    try:
-        # NSM device path
-        nsm_fd = open('/dev/nsm', 'rb')
-        # Request attestation document
-        # ... (NSM API calls)
-        nsm_fd.close()
-    except FileNotFoundError:
-        raise RuntimeError("Not running inside a Nitro Enclave")
-
-def get_trusted_session_key():
-    """
-    Retrieve the Trusted Session Key from KMS using attestation.
-    """
-    # In production, use aws-nitro-enclaves-sdk-python
-    # This demonstrates the concept
-    
-    # 1. Get attestation document
-    attestation_doc = get_attestation_document()
-    
-    # 2. Create KMS client
-    # Note: Enclaves use a proxy for AWS API calls
-    config = Config(
-        proxies={'https': 'http://127.0.0.1:8000'}
-    )
-    kms = boto3.client('kms', config=config)
-    
-    # 3. Call KMS Decrypt with attestation
-    # The encrypted key should be passed in or stored securely
-    encrypted_key = get_encrypted_tsk()  # Implement based on your setup
-    
-    response = kms.decrypt(
-        CiphertextBlob=encrypted_key,
-        Recipient={
-            'KeyEncryptionAlgorithm': 'RSAES_OAEP_SHA_256',
-            'AttestationDocument': attestation_doc
-        }
+def kms_decrypt(encrypted_tsk_b64):
+    """Decrypt TSK using KMS with hardware attestation."""
+    result = subprocess.run(
+        [
+            '/usr/bin/kmstool_enclave_cli',
+            'decrypt',
+            '--region', 'ap-southeast-1',
+            '--proxy-port', '8000',
+            '--aws-access-key-id', aws_access_key,
+            '--aws-secret-access-key', aws_secret_key,
+            '--aws-session-token', aws_session_token,
+            '--ciphertext', encrypted_tsk_b64
+        ],
+        capture_output=True,
+        text=True,
+        env={'AWS_COMMON_RUNTIME_LOG_LEVEL': 'Debug'}
     )
     
-    # 4. Return the plaintext key
-    return response['Plaintext']
-
-def get_encrypted_tsk():
-    """
-    Get the encrypted TSK blob.
-    This could be passed via environment, file, or vsock.
-    """
-    # Placeholder - implement based on your key distribution strategy
-    import os
-    return base64.b64decode(os.environ.get('ENCRYPTED_TSK', ''))
+    # Parse PLAINTEXT: <base64> from output
+    if "PLAINTEXT:" in result.stdout:
+        payload = result.stdout.split("PLAINTEXT:", 1)[1].strip()
+        return base64.b64decode(payload)
 ```
 
-## Step 5: Implement Agent Logic
+**Key Points:**
+- `kmstool_enclave_cli` automatically generates the attestation document
+- KMS validates PCR0 (enclave code hash) before decrypting
+- The TSK is only released if the enclave code matches the KMS policy
 
-```python
-# enclave/agent.py
-from crypto import encrypt, decrypt
-import json
-
-class AgentA:
-    """
-    Agent A: Generates initial state, encrypts and returns.
-    """
-    def __init__(self, tsk):
-        self.tsk = tsk
-    
-    def process(self, input_data):
-        """Generate initial state and encrypt."""
-        # Generate initial state
-        state = {
-            'agent': 'A',
-            'iteration': 1,
-            'data': {
-                'message': 'Initial state from Agent A',
-                'input_received': input_data,
-                'timestamp': self._get_timestamp()
-            }
-        }
-        
-        # Serialize and encrypt
-        plaintext = json.dumps(state).encode('utf-8')
-        ciphertext = encrypt(plaintext, self.tsk)
-        
-        return {
-            'status': 'success',
-            'ciphertext': ciphertext.hex()
-        }
-    
-    def _get_timestamp(self):
-        from datetime import datetime
-        return datetime.utcnow().isoformat()
-
-
-class AgentB:
-    """
-    Agent B: Receives ciphertext, decrypts, modifies, re-encrypts.
-    """
-    def __init__(self, tsk):
-        self.tsk = tsk
-    
-    def process(self, ciphertext_hex):
-        """Decrypt, process, and re-encrypt."""
-        # Decrypt incoming state
-        ciphertext = bytes.fromhex(ciphertext_hex)
-        plaintext = decrypt(ciphertext, self.tsk)
-        state = json.loads(plaintext.decode('utf-8'))
-        
-        # Modify state
-        state['agent'] = 'B'
-        state['iteration'] += 1
-        state['data']['processed_by_b'] = True
-        state['data']['b_message'] = 'State modified by Agent B'
-        state['data']['b_timestamp'] = self._get_timestamp()
-        
-        # Re-encrypt
-        new_plaintext = json.dumps(state).encode('utf-8')
-        new_ciphertext = encrypt(new_plaintext, self.tsk)
-        
-        return {
-            'status': 'success',
-            'ciphertext': new_ciphertext.hex()
-        }
-    
-    def _get_timestamp(self):
-        from datetime import datetime
-        return datetime.utcnow().isoformat()
-```
-
-## Step 6: Implement Crypto Utilities
-
-```python
-# enclave/crypto.py
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-import os
-
-def encrypt(plaintext: bytes, key: bytes) -> bytes:
-    """
-    Encrypt data using AES-256-GCM.
-    Returns: nonce (12 bytes) + ciphertext + tag
-    """
-    aesgcm = AESGCM(key)
-    nonce = os.urandom(12)
-    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
-    return nonce + ciphertext
-
-def decrypt(ciphertext: bytes, key: bytes) -> bytes:
-    """
-    Decrypt data using AES-256-GCM.
-    Expects: nonce (12 bytes) + ciphertext + tag
-    """
-    aesgcm = AESGCM(key)
-    nonce = ciphertext[:12]
-    actual_ciphertext = ciphertext[12:]
-    return aesgcm.decrypt(nonce, actual_ciphertext, None)
-```
-
-## Step 7: Build the Enclave Image
+## Building the Enclave
 
 ```bash
-# Navigate to enclave directory
-cd enclave
-
 # Build Docker image
 docker build -t confidential-enclave:latest .
 
 # Build EIF (Enclave Image File)
 nitro-cli build-enclave \
   --docker-uri confidential-enclave:latest \
-  --output-file enclave.eif
+  --output-file build/enclave.eif
 
-# Note the PCR0 value from output!
-# Update KMS policy with this value
+# Note the PCR0 value from output
+# This must match the KMS key policy
 ```
 
-## Step 8: Run the Enclave
+## Running the Enclave
 
 ```bash
 # Run the enclave
 nitro-cli run-enclave \
   --cpu-count 2 \
-  --memory 1024 \
-  --eif-path enclave.eif
+  --memory 2048 \
+  --eif-path build/enclave.eif \
+  --enclave-cid 16
+
+# Check status
+nitro-cli describe-enclaves
+
+# View console logs
+nitro-cli console --enclave-id <ENCLAVE_ID>
 ```
+
+## Workflow Protocol
+
+The enclave handles two types of requests:
+
+### 1. Configure Request
+```json
+{
+  "type": "configure",
+  "encrypted_tsk": "<base64>",
+  "aws_access_key_id": "...",
+  "aws_secret_access_key": "...",
+  "aws_session_token": "..."
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "msg": "configured",
+  "timestamp": "2025-12-13T10:00:00Z"
+}
+```
+
+### 2. Process Request
+```json
+{
+  "type": "process",
+  "ciphertext": "<hex>"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": "<hex>"
+}
+```
+
+## Security Features
+
+- **Hardware Attestation**: PCR0 validation ensures only approved code can decrypt
+- **Memory Isolation**: All processing happens in enclave memory (invisible to host)
+- **Ephemeral Keys**: TSK exists only in enclave memory, never persisted
+- **Encrypted Communication**: All data transferred as ciphertext
 
 ## Troubleshooting
 
-### Issue: `FileNotFoundError: /dev/nsm`
-
-**Cause**: Application not running inside an enclave
-
-**Solution**: This is expected during development. Ensure the enclave has access to the NSM device or mock the response for local unit tests.
-
-### Issue: `socket.error: Address family not supported`
-
-**Cause**: vsock not available (not in enclave or wrong kernel)
-
-**Solution**: Verify running in enclave or use TCP for local testing.
-
 ### Issue: `KMS Decrypt failed`
 
-**Cause**: Attestation document doesn't match KMS policy
+**Cause**: PCR0 mismatch between EIF and KMS policy
 
-**Solution**: Rebuild enclave and update KMS policy with new PCR0.
+**Solution**:
+```bash
+# Rebuild enclave and note new PCR0
+nitro-cli build-enclave --docker-uri confidential-enclave:latest --output-file build/enclave.eif
+
+# Update KMS policy with new PCR0
+./scripts/setup-kms.sh
+```
+
+### Issue: `vsock connection refused`
+
+**Cause**: Enclave not running or wrong CID/port
+
+**Solution**:
+```bash
+# Check enclave status
+nitro-cli describe-enclaves
+
+# Restart if needed
+nitro-cli terminate-enclave --all
+./scripts/run-enclave.sh
+```
+
+### Issue: `vsock-proxy not running`
+
+**Cause**: KMS proxy not started
+
+**Solution**:
+```bash
+# Start vsock-proxy for KMS access
+pkill vsock-proxy || true
+vsock-proxy 8000 kms.ap-southeast-1.amazonaws.com 443 &
+```
+
+## Development Tips
+
+1. **Local Testing**: Use Docker to test enclave logic before building EIF
+2. **Logging**: Use `print(..., flush=True)` for immediate console output
+3. **PCR0 Management**: Save PCR0 values when rebuilding to track changes
+4. **Memory Allocation**: Ensure sufficient memory (minimum 2048 MB for crypto libraries)
 
 ## Next Steps
 
 - [HOST_WORKER_SETUP.md](./HOST_WORKER_SETUP.md) - Set up the host worker application
+- [REFERENCE.md](./REFERENCE.md) - System reference and troubleshooting

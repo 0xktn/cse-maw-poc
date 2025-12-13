@@ -49,11 +49,22 @@ nitro-cli build-enclave --docker-uri confidential-enclave:latest --output-file .
  # ./scripts/setup-kms.sh
 ```
 
-### Current PCR0
+### Viewing Current PCR0
 
+PCR0 changes with every enclave build. To view the current value:
+
+```bash
+# During build (shown in output)
+nitro-cli build-enclave --docker-uri confidential-enclave:latest --output-file build/enclave.eif
+
+# From running enclave (via verification)
+./scripts/trigger.sh --verify --deep
+
+# From build artifacts
+cat build/enclave.eif.json | jq -r '.Measurements.PCR0'
 ```
-ff332b261c7e90783f1782aad362dd1c9f0cd75f95687f78816933145c62a78c18b8fbe644adadd116a2d4305b888994
-```
+
+**Note**: The setup script automatically extracts PCR0 and updates the KMS policy, so manual management is typically not needed.
 
 ## Security Considerations
 
@@ -156,8 +167,8 @@ ff332b261c7e90783f1782aad362dd1c9f0cd75f95687f78816933145c62a78c18b8fbe644adadd1
 
 #### CloudTrail Issues
 
-**Issue**: `AccessDeniedException` when running `verify_cloudtrail.py`
-- **Cause**: Missing IAM permission
+**Issue**: `AccessDeniedException` when running verification
+- **Cause**: Missing IAM permission for CloudTrail
 - **Solution**:
   ```bash
   # Add CloudTrail permission to instance role
@@ -168,7 +179,7 @@ ff332b261c7e90783f1782aad362dd1c9f0cd75f95687f78816933145c62a78c18b8fbe644adadd1
 
 **Issue**: No attestation documents found in CloudTrail
 - **Cause**: CloudTrail has 5-15 minute delay, or no recent KMS calls from enclave
-- **Solution**: Run `test_kms_attestation.py` to generate fresh event, wait 15 minutes, then check CloudTrail
+- **Solution**: Run a workflow with `./scripts/trigger.sh`, wait 2-5 minutes, then verify with `./scripts/trigger.sh --verify --deep`
 
 ## Performance Considerations
 
