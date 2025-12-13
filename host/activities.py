@@ -210,9 +210,9 @@ async def process_in_enclave(request_data: str) -> str:
     
     Returns encrypted blob as JSON string.
     """
-    # Configure enclave on first use
-    if not _enclave_configured:
-        configure_enclave()
+    # CRITICAL: Always configure enclave to ensure KMS decrypt happens
+    # This generates a new attestation event in CloudTrail for every workflow
+    configure_enclave()
     
     logger.info(f"Sending to enclave: {request_data[:50]}...")
     
