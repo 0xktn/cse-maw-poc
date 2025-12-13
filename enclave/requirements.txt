@@ -2,3 +2,4 @@
 boto3>=1.28.0
 cryptography>=41.0.0
 protobuf>=4.24.0
+aws-nitro-enclaves-nsm-api>=0.4.0
