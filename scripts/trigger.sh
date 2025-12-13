@@ -115,28 +115,8 @@ if [[ "$MODE" == "verify_attestation" ]]; then
         log_info "Verifying attestation for workflow: $WORKFLOW_ID"
     fi
     
-    # Get workflow execution time from Temporal
-    log_info "Fetching workflow execution time..."
-    COMMAND_ID=$(aws ssm send-command \
-        --region "$AWS_REGION" \
-        --instance-ids "$INSTANCE_ID" \
-        --document-name "AWS-RunShellScript" \
-        --parameters "commands=[\\\"docker exec temporal temporal --address temporal:7233 workflow describe --namespace confidential-workflow-poc --workflow-id $WORKFLOW_ID --fields long 2>&1 | grep -E 'StartTime|CloseTime' | head -2\\\"]" \
-        --query 'Command.CommandId' \
-        --output text 2>/dev/null)
-    
-    sleep 3
-    
-    TIMES=$(aws ssm get-command-invocation \
-        --region "$AWS_REGION" \
-        --command-id "$COMMAND_ID" \
-        --instance-id "$INSTANCE_ID" \
-        --query 'StandardOutputContent' \
-        --output text 2>/dev/null || echo "")
-    
-    # Extract start time (format: "11 seconds ago" or timestamp)
-    # For now, use a time window around when the workflow was triggered
-    # Get the last 10 minutes of CloudTrail events
+    # Use a 10-minute time window for CloudTrail search
+    # CloudTrail events can take 1-2 minutes to appear
     if date -v-10M > /dev/null 2>&1; then
         # macOS
         START_TIME=$(date -u -v-10M '+%Y-%m-%dT%H:%M:%S')
