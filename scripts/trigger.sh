@@ -214,6 +214,36 @@ if [[ "$MODE" == "verify_attestation" ]]; then
     echo "Attestation Verified!"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
+    
+    # Verify PCR0 against local build
+    EXPECTED_PCR0=$(state_get "pcr0" 2>/dev/null || echo "")
+    if [[ -n "$EXPECTED_PCR0" ]]; then
+        # Extract Image Digest from CloudTrail (base64)
+        ACTUAL_PCR0_B64=$(echo "$ATTESTATION" | jq -r '.additionalEventData.recipient.attestationDocumentEnclaveImageDigest')
+        
+        # Convert base64 to hex
+        if command -v python3 &>/dev/null; then
+            ACTUAL_PCR0_HEX=$(python3 -c "import base64, binascii; print(binascii.hexlify(base64.b64decode('$ACTUAL_PCR0_B64')).decode())")
+        else
+            # Fallback if python not available (less robust but works on most systems)
+            ACTUAL_PCR0_HEX=$(echo "$ACTUAL_PCR0_B64" | base64 -d | xxd -p | tr -d '\n')
+        fi
+        
+        echo "PCR0 Verification:"
+        echo "  Expected (Build): $EXPECTED_PCR0"
+        echo "  Actual (Enclave): $ACTUAL_PCR0_HEX"
+        
+        if [[ "$EXPECTED_PCR0" == "$ACTUAL_PCR0_HEX" ]]; then
+            echo "  Result:           ✅ MATCH - Integrity Confirmed"
+        else
+            echo "  Result:           ❌ MISMATCH - Code Integrity Failed!"
+            log_warn "The running enclave code differs from your local build artifact."
+        fi
+    else
+        log_warn "Could not verify PCR0: Local build state not found."
+    fi
+
+    echo ""
     echo "This attestation document is cryptographically signed by AWS Nitro hardware."
     echo "KMS verified these measurements before releasing the encrypted secret."
     echo ""
