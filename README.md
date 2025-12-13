@@ -67,11 +67,25 @@ cd confidential-multi-agent-workflow
  ./scripts/trigger.sh --verify
  ```
 
+ For deep verification (including remote attestation integrity check):
+ ```bash
+ ./scripts/trigger.sh --verify --deep
+ ```
+
 **Expected Output**:
 ```
-✅ SYSTEM VERIFIED
-   Proof: Found 'Enclave configured successfully' in worker logs
-   Conclusion: System is healthy and securely decrypting keys.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Attestation Verification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[INFO] Attestation document found!
+
+Event Time:        2025-12-13T06:06:23Z
+PCR0 Verification:
+  Expected (Build): 4a2cbe...
+  Actual (Enclave): 4a2cbe...
+  Result:           ✅ MATCH - Integrity Confirmed
+
+This attestation document is cryptographically signed by AWS Nitro hardware.
 ```
 
 ## References

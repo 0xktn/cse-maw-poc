@@ -20,6 +20,12 @@ except ImportError as e:
 def verify_attestation(attestation_b64):
     print("Loading attestation document...")
     try:
+        # Fix padding
+        attestation_b64 = attestation_b64.strip()
+        missing_padding = len(attestation_b64) % 4
+        if missing_padding:
+            attestation_b64 += '=' * (4 - missing_padding)
+            
         # 1. Decode Base64
         cose_bytes = base64.b64decode(attestation_b64)
         print(f"✅ Base64 decoded ({len(cose_bytes)} bytes)")
@@ -119,6 +125,7 @@ if __name__ == "__main__":
         import re
         patterns = [
             r"PLAINTEXT:([A-Za-z0-9+/=]+)",
+            r"AttestationDocument: ([A-Za-z0-9+/=]+)", # Added this line
             r"Attestation Document: ([A-Za-z0-9+/=]+)",
             r"attestation_document: ([A-Za-z0-9+/=]+)",
              r"([A-Za-z0-9+/=]{500,})" # Fallback: long base64 string

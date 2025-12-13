@@ -177,7 +177,6 @@ def configure_enclave():
         
         if result.get('status') == 'ok':
             logger.info("Enclave configured successfully")
-            
             # AUTOMATIC PROOF: Save attestation document if returned
             att_doc = result.get('attestation_document')
             if att_doc:
