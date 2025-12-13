@@ -173,6 +173,18 @@ def configure_enclave():
             att_err = result.get('attestation_error')
             if att_err:
                 logger.error(f"⚠️ Enclave reported attestation error: {att_err}")
+
+            # Save debug logs if available (fallback for scraping)
+            tool_logs = result.get('kms_tool_logs')
+            if tool_logs:
+                log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'attestation.log')
+                # Adjustment for path same as doc_path
+                if os.path.basename(os.path.dirname(log_path)) == 'host':
+                     log_path = os.path.join(os.path.dirname(os.path.dirname(log_path)), 'attestation.log')
+                
+                with open(log_path, 'w') as f:
+                    f.write(str(tool_logs))
+                logger.info(f"✅ SAVED DEBUG LOGS TO: {log_path}")
                 
             _enclave_configured = True
         else:
