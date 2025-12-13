@@ -7,7 +7,8 @@ Activities that communicate with the enclave via vsock.
 import socket
 import os
 import json
-import time
+import os
+import timetime
 from datetime import datetime
 from temporalio import activity
 import logging
@@ -151,9 +152,28 @@ def configure_enclave():
         }
         sock.sendall(json.dumps(config_request).encode())
         
-        # Wait for confirmation
-        response = sock.recv(4096)
-        result = json.loads(response.decode())
+        # Wait for confirmation (read until valid JSON)
+        data = b""
+        start_time = time.time()
+        while time.time() - start_time < 10: # 10s timeout
+            try:
+                chunk = sock.recv(65536) # Read larger chunks
+                if not chunk:
+                    break
+                data += chunk
+                result = json.loads(data.decode())
+                break # Valid JSON received
+            except json.JSONDecodeError:
+                continue # Keep reading
+        else:
+            # If we exit loop without breaking, check if we have data that failed to parse
+             if data:
+                 try: 
+                     result = json.loads(data.decode())
+                 except:
+                     raise Exception(f"Timeout waiting for valid JSON response. Received {len(data)} bytes.")
+             else:
+                 raise Exception("Timeout waiting for valid JSON response (no data)")
         
         if result.get('status') == 'ok':
             logger.info("Enclave configured successfully")
