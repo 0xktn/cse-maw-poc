@@ -5,8 +5,7 @@ FROM ghcr.io/0xktn/kmstool:v0.4.3 AS builder
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 
 # Install runtime dependencies
-# We need gcc, git, rust, cargo, openssl-devel to build nsm-api from source if wheels are missing
-RUN dnf install -y python3 python3-pip findutils gcc git rust cargo openssl-devel && dnf clean all
+RUN dnf install -y python3 python3-pip findutils && dnf clean all
 
 # Copy built artifacts from pre-built image
 COPY --from=builder /usr/lib64/libnsm.so /usr/lib64/libnsm.so
