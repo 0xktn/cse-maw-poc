@@ -4,15 +4,9 @@ import socket
 import subprocess
 import base64
 import sys
+import re
 from datetime import datetime
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-try:
-    from aws_nitro_enclaves_nsm_api import NitroSecurityModule
-    NSM_AVAILABLE = True
-except ImportError:
-    print("[WARN] NSM API not found. Deep attestation disabled.", flush=True)
-    NSM_AVAILABLE = False
 
 # Standard IO buffering
 # We use explicit flush=True in prints
@@ -27,32 +21,6 @@ CREDENTIALS = {
 }
 ENCRYPTION_KEY = None # 32-byte TSK
 
-def get_attestation_doc():
-    """Generates a fresh attestation document via NSM."""
-    if not NSM_AVAILABLE:
-        return None, "NSM library missing"
-        
-    try:
-        print("[ENCLAVE] Generating explicit attestation document...", flush=True)
-        nsm = NitroSecurityModule()
-        # Ensure we get the document
-        doc_obj = nsm.get_attestation_doc()
-        # The result is usually dict-like with 'document' key as bytes
-        if hasattr(doc_obj, 'get'):
-             doc_bytes = doc_obj.get('document')
-        else:
-             # Some versions return raw bytes or object
-             doc_bytes = doc_obj
-             
-        if not doc_bytes:
-             return None, "Empty document returned"
-             
-        return base64.b64encode(doc_bytes).decode('utf-8'), None
-    except Exception as e:
-        err = str(e)
-        print(f"[ERROR] NSM Attestation Failed: {err}", flush=True)
-        return None, err
-
 def kms_decrypt(ciphertext_b64):
     print(f"[ENCLAVE] Decrypting ciphertext len={len(ciphertext_b64)}", flush=True)
     try:
@@ -66,7 +34,7 @@ def kms_decrypt(ciphertext_b64):
             '--ciphertext', ciphertext_b64
         ]
         
-        # Keep trace logging for debug but no regex scraping needed
+        # Enable Trace logging to potentially capture attestation doc
         env = os.environ.copy()
         env['AWS_COMMON_RUNTIME_LOG_LEVEL'] = 'Trace'
         
@@ -74,22 +42,29 @@ def kms_decrypt(ciphertext_b64):
             cmd, capture_output=True, text=True, check=True, env=env
         )
         
-        output = result.stdout.strip()
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+        
+        # Try to find attestation in stderr logs
+        # Pattern looks for base64 blocks or specific log lines
+        # This is best-effort. Return stderr for debugging.
+        attestation_debug_log = stderr[-2000:] # Last 2KB
+        
         # Parse PLAINTEXT: <base64>
         marker = "PLAINTEXT:"
-        if marker in output:
-            payload = output.split(marker, 1)[1].strip()
-            return (base64.b64decode(payload), None)
-        return (base64.b64decode(output), None)
+        if marker in stdout:
+            payload = stdout.split(marker, 1)[1].strip()
+            return (base64.b64decode(payload), None, attestation_debug_log)
+        return (base64.b64decode(stdout), None, attestation_debug_log)
 
     except subprocess.CalledProcessError as e:
         err_msg = e.stderr.strip()
         print(f"[ERROR] KMS Tool Failed: {err_msg}", flush=True)
-        return (None, err_msg)
+        return (None, err_msg, "")
     except Exception as e:
         err_msg = str(e)
         print(f"[ERROR] KMS Decrypt Exception: {err_msg}", flush=True)
-        return (None, err_msg)
+        return (None, err_msg, "")
 
 def run_server():
     global ENCRYPTION_KEY
@@ -148,21 +123,21 @@ def run_server():
                         # (KMS only decrypts if PCR0 matches)
                         print("[ENCLAVE] Requesting decryption from KMS...", flush=True)
 
-                        tsk_bytes, err_details = kms_decrypt(tsk_b64)
+                        tsk_bytes, err_details, debug_logs = kms_decrypt(tsk_b64)
                         if tsk_bytes:
                             ENCRYPTION_KEY = tsk_bytes
                             print(f"[ENCLAVE] ✅ TSK decrypted successfully! (len={len(ENCRYPTION_KEY)})", flush=True)
                             print(f"[ENCLAVE] ✅ Enclave configured at {datetime.utcnow().isoformat()}", flush=True)
                             
-                            # Generate explicit attestation for audit
-                            audit_doc, audit_err = get_attestation_doc()
-                            
+                            # For audit, we cannot generate explicit doc without NSM library (which failed build).
+                            # We return the KMS tool logs, which might contain useful trace info.
                             response = {
                                 "status": "ok", 
                                 "msg": "configured", 
                                 "timestamp": datetime.utcnow().isoformat(),
-                                "attestation_document": audit_doc,
-                                "attestation_error": audit_err
+                                "attestation_document": None,
+                                "attestation_error": "NSM library build failed - Attestation doc not available. See logs.",
+                                "kms_tool_logs": debug_logs
                             }
                         else:
                             print(f"[ENCLAVE] ❌ KMS decrypt failed: {err_details}", flush=True)
