@@ -1,4 +1,6 @@
-# Confidential Multi-Agent Workflow
+# Cryptographic State Encapsulation Multi-Agent Workflow
+
+> **CSE-MAW** — Proof of Concept
 
 ## Project Overview
 
@@ -43,8 +45,8 @@ sequenceDiagram
 
 ```bash
 # Clone the repository
-git clone https://github.com/0xktn/confidential-multi-agent-workflow.git
-cd confidential-multi-agent-workflow
+git clone https://github.com/0xktn/cse-maw-poc.git
+cd cse-maw-poc
 
 # Automated Setup (Creates EC2, KMS & Builds Enclave)
 ./scripts/setup.sh
